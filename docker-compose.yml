@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # PropsDB Go Fiber Service
+  propsdb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: propsdb
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_TYPE=mysql
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_DATABASE=jam_build
+      - DB_APP_USER=jbadmin
+      - DB_APP_PASSWORD=admin_password
+      - DB_USER=jbuser
+      - DB_PASSWORD=user_password
+      - DB_APP_CONNECTION_LIMIT=5
+      - DB_CONNECTION_LIMIT=5
+      - AUTHZ_URL=http://authorizer:8080
+      - AUTHZ_CLIENT_ID=${AUTHZ_CLIENT_ID:-your_client_id_here}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      authorizer:
+        condition: service_started
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  # MariaDB Database
+  mariadb:
+    image: mariadb:11.2
+    container_name: propsdb-mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=jam_build
+      - MYSQL_USER=jbadmin
+      - MYSQL_PASSWORD=admin_password
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./migrations/mysql:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - propsdb-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Authorizer Service
+  authorizer:
+    image: localnerve/authorizer:1.5.3
+    container_name: propsdb-authorizer
+    environment:
+      - DATABASE_TYPE=mysql
+      - DATABASE_URL=root:rootpassword@tcp(mariadb:3306)/authorizer?parseTime=true
+      - PORT=8080
+      - ADMIN_SECRET=${ADMIN_SECRET:-admin_secret_change_me}
+      - COOKIE_NAME=cookie_session
+      - DISABLE_PLAYGROUND=false
+      - DISABLE_STRONG_PASSWORD=false
+      - DISABLE_EMAIL_VERIFICATION=true
+      - DISABLE_BASIC_AUTHENTICATION=false
+      - DISABLE_MAGIC_LINK_LOGIN=true
+      - DISABLE_LOGIN_PAGE=false
+      - DISABLE_SIGN_UP=false
+      - ROLES=user,admin
+    ports:
+      - "8080:8080"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  # Optional: Adminer for database management
+  adminer:
+    image: adminer:4.8.1
+    container_name: propsdb-adminer
+    ports:
+      - "8081:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=mariadb
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+networks:
+  propsdb-network:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+    driver: local
