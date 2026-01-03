@@ -17,6 +17,7 @@ import (
 	"github.com/localnerve/propsdb/internal/database"
 	"github.com/localnerve/propsdb/internal/handlers"
 	"github.com/localnerve/propsdb/internal/middleware"
+	"github.com/localnerve/propsdb/internal/types"
 
 	_ "github.com/localnerve/propsdb/docs/api" // Swagger docs
 )
@@ -163,6 +164,13 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
 		message = e.Message
+	}
+
+	// Check for custom errors
+	if e, ok := err.(*types.CustomError); ok {
+		code = e.Code
+		message = e.Message
+		errorType = e.Type
 	}
 
 	// Check for version errors
