@@ -1,6 +1,6 @@
 # Binaries
-/cmd/server/server
 /propsdb
+/healthcheck
 *.exe
 *.dll
 *.so
