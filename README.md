@@ -24,8 +24,8 @@ A high-performance data service built with Go and Fiber, serving as a drop-in re
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd propsdb-claude
+git clone https://github.com/localnerve/propsdb.git
+cd propsdb
 ```
 
 2. Copy the example environment file:
@@ -190,20 +190,37 @@ volumes:
 
 ### Project Structure
 
+For information on Prometheus metrics and Grafana dashboards, see [OBSERVABILITY.md](file:///Users/agrant/projects/propsdb/docs/OBSERVABILITY.md).
+
+## Project Structure
+
 ```
-propsdb-claude/
-├── cmd/server/          # Application entry point
+propsdb/
+├── cmd/
+│   └── server/
+│       └── main.go                 # Application entry point
+├── docs/                           # Documentation
+│   ├── OBSERVABILITY.md            # Observability details
+│   ├── TESTING.md                  # Testing guide
+│   ├── COVERAGE.md                 # Coverage guide
+│   ├── HEALTHCHECK.md              # Health check details
+│   └── api/                        # Swagger/OpenAPI docs
 ├── internal/
-│   ├── config/          # Configuration management
-│   ├── database/        # Database connection
-│   ├── models/          # GORM models
-│   ├── middleware/      # HTTP middleware
-│   ├── handlers/        # HTTP handlers
-│   ├── services/        # Business logic
-│   └── utils/           # Utilities
-├── migrations/          # SQL migrations
-├── tests/               # Tests
-└── Dockerfile           # Docker configuration
+│   ├── config/                     # Configuration
+│   ├── database/                   # Database layer
+│   ├── models/                     # GORM models
+│   ├── middleware/                 # Middleware (auth, version)
+│   ├── handlers/                   # API handlers
+│   ├── services/                   # Business logic
+│   └── utils/                      # Utilities
+├── migrations/                     # SQL migrations
+├── tests/
+│   ├── e2e/                        # End-to-end tests
+│   ├── integration/                # Integration tests
+│   └── unit/                       # Unit tests
+├── coverage/                       # Coverage output
+├── Dockerfile                      # Docker configuration
+└── Makefile                        # Build system
 ```
 
 ### Running Tests
