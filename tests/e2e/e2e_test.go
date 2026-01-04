@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/build"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
@@ -137,65 +139,106 @@ func TestE2EWithFullStack(t *testing.T) {
 	// Build and start PropsDB service
 	propsdbResourceReaperSessionID := uuid.New().String()
 
-	propsdbBuilderContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			FromDockerfile: testcontainers.FromDockerfile{
-				Context:    "../..",
-				Dockerfile: "Dockerfile",
-				Repo:       "propsdb-test-builder",
-				Tag:        "latest",
-				BuildArgs: map[string]*string{
-					"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
-				},
-				BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
-					opts.Target = "builder" // Build specific stage
-				},
-				PrintBuildLog: true,
-			},
-		},
-		Started: false,
-	})
+	// Check if propsdb-test image exists
+	imageName := "propsdb-test:latest"
+	imageExists, err := imageExists(ctx, imageName)
 	if err != nil {
-		t.Fatalf("Failed to build propsdb-test-builder: %v", err)
+		t.Fatalf("Failed to check if image exists: %v", err)
 	}
-	defer propsdbBuilderContainer.Terminate(ctx)
 
-	propsdbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			FromDockerfile: testcontainers.FromDockerfile{
-				Context:    "../..",
-				Dockerfile: "Dockerfile",
-				Repo:       "propsdb-test",
-				Tag:        "latest",
-				BuildArgs: map[string]*string{
-					"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+	var propsdbBuilderContainer testcontainers.Container
+	var propsdbContainer testcontainers.Container
+
+	if !imageExists {
+		t.Logf("Image %s does not exist, building...", imageName)
+		propsdbBuilderContainer, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				FromDockerfile: testcontainers.FromDockerfile{
+					Context:    "../..",
+					Dockerfile: "Dockerfile",
+					Repo:       "propsdb-test-builder",
+					Tag:        "latest",
+					BuildArgs: map[string]*string{
+						"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+					},
+					BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
+						opts.Target = "builder" // Build specific stage
+					},
+					PrintBuildLog: true,
 				},
-				BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
-					opts.Target = "runtime" // Build specific stage
+			},
+			Started: false,
+		})
+		if err != nil {
+			t.Fatalf("Failed to build propsdb-test-builder: %v", err)
+		}
+		defer propsdbBuilderContainer.Terminate(ctx)
+
+		propsdbContainer, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				FromDockerfile: testcontainers.FromDockerfile{
+					Context:    "../..",
+					Dockerfile: "Dockerfile",
+					Repo:       "propsdb-test",
+					Tag:        "latest",
+					KeepImage:  true, // Keep the image so we can reuse it
+					BuildArgs: map[string]*string{
+						"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+					},
+					BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
+						opts.Target = "runtime" // Build specific stage
+					},
+					PrintBuildLog: true,
 				},
-				PrintBuildLog: true,
+				ExposedPorts: []string{"3000/tcp"},
+				Env: map[string]string{
+					"DB_TYPE":                 "mysql",
+					"DB_HOST":                 "mariadb",
+					"DB_PORT":                 "3306",
+					"DB_DATABASE":             "testdb",
+					"DB_APP_USER":             "root",
+					"DB_APP_PASSWORD":         "rootpass",
+					"DB_USER":                 "root",
+					"DB_PASSWORD":             "rootpass",
+					"DB_APP_CONNECTION_LIMIT": "5",
+					"DB_CONNECTION_LIMIT":     "5",
+					"AUTHZ_URL":               "http://authorizer:8080",
+					"AUTHZ_CLIENT_ID":         "test_client",
+					"PORT":                    "3000",
+				},
+				WaitingFor: wait.ForHTTP("/metrics").WithPort("3000").WithStartupTimeout(120 * time.Second),
+				Networks:   []string{networkName},
 			},
-			ExposedPorts: []string{"3000/tcp"},
-			Env: map[string]string{
-				"DB_TYPE":                 "mysql",
-				"DB_HOST":                 "mariadb",
-				"DB_PORT":                 "3306",
-				"DB_DATABASE":             "testdb",
-				"DB_APP_USER":             "root",
-				"DB_APP_PASSWORD":         "rootpass",
-				"DB_USER":                 "root",
-				"DB_PASSWORD":             "rootpass",
-				"DB_APP_CONNECTION_LIMIT": "5",
-				"DB_CONNECTION_LIMIT":     "5",
-				"AUTHZ_URL":               "http://authorizer:8080",
-				"AUTHZ_CLIENT_ID":         "test_client",
-				"PORT":                    "3000",
+			Started: true,
+		})
+	} else {
+		t.Logf("Image %s exists, reusing...", imageName)
+		propsdbContainer, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Image:        imageName,
+				ExposedPorts: []string{"3000/tcp"},
+				Env: map[string]string{
+					"DB_TYPE":                 "mysql",
+					"DB_HOST":                 "mariadb",
+					"DB_PORT":                 "3306",
+					"DB_DATABASE":             "testdb",
+					"DB_APP_USER":             "root",
+					"DB_APP_PASSWORD":         "rootpass",
+					"DB_USER":                 "root",
+					"DB_PASSWORD":             "rootpass",
+					"DB_APP_CONNECTION_LIMIT": "5",
+					"DB_CONNECTION_LIMIT":     "5",
+					"AUTHZ_URL":               "http://authorizer:8080",
+					"AUTHZ_CLIENT_ID":         "test_client",
+					"PORT":                    "3000",
+				},
+				WaitingFor: wait.ForHTTP("/metrics").WithPort("3000").WithStartupTimeout(120 * time.Second),
+				Networks:   []string{networkName},
 			},
-			WaitingFor: wait.ForHTTP("/metrics").WithPort("3000").WithStartupTimeout(120 * time.Second),
-			Networks:   []string{networkName},
-		},
-		Started: true,
-	})
+			Started: true,
+		})
+	}
+
 	if err != nil {
 		t.Fatalf("Failed to start PropsDB: %v", err)
 	}
@@ -225,13 +268,38 @@ func TestE2EWithFullStack(t *testing.T) {
 		testSwaggerUI(t, baseURL)
 	})
 
+	// Public API Access
 	t.Run("PublicAPIAccess", func(t *testing.T) {
 		testPublicAPIAccessEmpty(t, baseURL)
 	})
 
+	// Version Header
 	t.Run("VersionHeader", func(t *testing.T) {
 		testVersionHeader(t, baseURL)
 	})
+}
+
+func imageExists(ctx context.Context, imageName string) (bool, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return false, err
+	}
+	defer cli.Close()
+
+	images, err := cli.ImageList(ctx, image.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			if tag == imageName {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func testHealthCheck(t *testing.T, baseURL string) {

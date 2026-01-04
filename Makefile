@@ -72,6 +72,12 @@ test-e2e: ## Run end-to-end tests with full stack (requires Docker)
 	@echo "Running E2E tests..."
 	$(GOTEST) -v ./tests/e2e/... -timeout 300s
 
+test-e2e-rebuild: ## Run E2E tests with forced rebuild of propsdb-test image
+	@echo "Forcing rebuild of propsdb-test images..."
+	docker rmi propsdb-test:latest || true
+	@echo "Running E2E tests..."
+	$(GOTEST) -v ./tests/e2e/... -timeout 300s
+
 test-all: ## Run all tests including integration and E2E
 	@echo "Running all tests..."
 	$(GOTEST) -v ./tests/...
