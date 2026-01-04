@@ -1,5 +1,11 @@
+# Build arguments
+ARG RESOURCE_REAPER_SESSION_ID="00000000-0000-0000-0000-000000000000"
+
+# ------------------
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
+ARG RESOURCE_REAPER_SESSION_ID
+LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -22,8 +28,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o propsdb ./cmd/ser
 # Build the healthcheck application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o healthcheck ./cmd/healthcheck
 
+# ------------------
 # Runtime stage
-FROM alpine:latest
+FROM alpine:latest as runtime
+ARG RESOURCE_REAPER_SESSION_ID
+LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 
 # Install ca-certificates for HTTPS and wget for health checks
 RUN apk --no-cache add ca-certificates wget

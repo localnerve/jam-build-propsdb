@@ -3,14 +3,20 @@ package e2e_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/build"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -22,18 +28,31 @@ func TestE2EWithFullStack(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create a network
+	nw, err := network.New(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create network: %v", err)
+	}
+	networkName := nw.Name
+	defer func() {
+		if err := nw.Remove(ctx); err != nil {
+			t.Logf("Failed to remove network: %v", err)
+		}
+	}()
+
 	// Start MariaDB
 	mariadbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "mariadb:11.2",
+			Image:        os.Getenv("DOCKER_MARIADB_IMAGE"),
 			ExposedPorts: []string{"3306/tcp"},
 			Env: map[string]string{
 				"MYSQL_ROOT_PASSWORD": "rootpass",
-				"MYSQL_DATABASE":      "testdb",
-				"MYSQL_USER":          "testuser",
-				"MYSQL_PASSWORD":      "testpass",
 			},
-			WaitingFor: wait.ForLog("ready for connections").WithStartupTimeout(60 * time.Second),
+			WaitingFor: wait.ForListeningPort("3306/tcp").WithStartupTimeout(60 * time.Second),
+			Networks:   []string{networkName},
+			NetworkAliases: map[string][]string{
+				networkName: {"mariadb"},
+			},
 		},
 		Started: true,
 	})
@@ -46,25 +65,63 @@ func TestE2EWithFullStack(t *testing.T) {
 		}
 	}()
 
+	// Create databases
 	mariadbHost, _ := mariadbContainer.Host(ctx)
 	mariadbPort, _ := mariadbContainer.MappedPort(ctx, "3306")
+	db, err := sql.Open("mysql", fmt.Sprintf("root:rootpass@tcp(%s:%s)/", mariadbHost, mariadbPort.Port()))
+	if err != nil {
+		t.Fatalf("Failed to connect to MariaDB for setup: %v", err)
+	}
+	defer db.Close()
+
+	// Wait for connection to be really ready
+	for i := 0; i < 30; i++ {
+		err = db.Ping()
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		t.Fatalf("MariaDB not ready after 30 seconds: %v", err)
+	}
+
+	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS testdb")
+	if err != nil {
+		t.Fatalf("Failed to create testdb: %v", err)
+	}
+	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS authorizer")
+	if err != nil {
+		t.Fatalf("Failed to create authorizer db: %v", err)
+	}
+	_, err = db.Exec("GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'rootpass' WITH GRANT OPTION")
+	if err != nil {
+		t.Fatalf("Failed to grant privileges: %v", err)
+	}
+	_, err = db.Exec("FLUSH PRIVILEGES")
+	if err != nil {
+		t.Fatalf("Failed to flush privileges: %v", err)
+	}
 
 	// Start Authorizer
 	authorizerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "localnerve/authorizer:1.5.3",
+			Image:        os.Getenv("DOCKER_AUTHZ_IMAGE"),
 			ExposedPorts: []string{"8080/tcp"},
 			Env: map[string]string{
-				"DATABASE_TYPE":     "mysql",
-				"DATABASE_HOST":     mariadbHost,
-				"DATABASE_PORT":     mariadbPort.Port(),
-				"DATABASE_NAME":     "testdb",
-				"DATABASE_USERNAME": "testuser",
-				"DATABASE_PASSWORD": "testpass",
-				"ADMIN_SECRET":      "admin_secret",
-				"JWT_SECRET":        "jwt_secret",
+				"ENV":           "production",
+				"DATABASE_TYPE": "mariadb",
+				"DATABASE_URL":  "root:rootpass@tcp(mariadb:3306)/authorizer",
+				"ADMIN_SECRET":  "admin_secret",
+				"JWT_SECRET":    "jwt_secret",
+				"ROLES":         "admin,user",
+				"DEFAULT_ROLES": "user",
 			},
-			WaitingFor: wait.ForHTTP("/").WithPort("8080").WithStartupTimeout(60 * time.Second),
+			WaitingFor: wait.ForLog("Authorizer running at PORT:").WithStartupTimeout(60 * time.Second),
+			Networks:   []string{networkName},
+			NetworkAliases: map[string][]string{
+				networkName: {"authorizer"},
+			},
 		},
 		Started: true,
 	})
@@ -77,34 +134,65 @@ func TestE2EWithFullStack(t *testing.T) {
 		}
 	}()
 
-	authorizerHost, _ := authorizerContainer.Host(ctx)
-	authorizerPort, _ := authorizerContainer.MappedPort(ctx, "8080")
-	authorizerURL := fmt.Sprintf("http://%s:%s", authorizerHost, authorizerPort.Port())
-
 	// Build and start PropsDB service
+	propsdbResourceReaperSessionID := uuid.New().String()
+
+	propsdbBuilderContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			FromDockerfile: testcontainers.FromDockerfile{
+				Context:    "../..",
+				Dockerfile: "Dockerfile",
+				Repo:       "propsdb-test-builder",
+				Tag:        "latest",
+				BuildArgs: map[string]*string{
+					"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+				},
+				BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
+					opts.Target = "builder" // Build specific stage
+				},
+				PrintBuildLog: true,
+			},
+		},
+		Started: false,
+	})
+	if err != nil {
+		t.Fatalf("Failed to build propsdb-test-builder: %v", err)
+	}
+	defer propsdbBuilderContainer.Terminate(ctx)
+
 	propsdbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			FromDockerfile: testcontainers.FromDockerfile{
 				Context:    "../..",
 				Dockerfile: "Dockerfile",
+				Repo:       "propsdb-test",
+				Tag:        "latest",
+				BuildArgs: map[string]*string{
+					"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+				},
+				BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
+					opts.Target = "runtime" // Build specific stage
+				},
+				PrintBuildLog: true,
 			},
 			ExposedPorts: []string{"3000/tcp"},
 			Env: map[string]string{
 				"DB_TYPE":                 "mysql",
-				"DB_HOST":                 mariadbHost,
-				"DB_PORT":                 mariadbPort.Port(),
+				"DB_HOST":                 "mariadb",
+				"DB_PORT":                 "3306",
 				"DB_DATABASE":             "testdb",
-				"DB_APP_USER":             "testuser",
-				"DB_APP_PASSWORD":         "testpass",
-				"DB_USER":                 "testuser",
-				"DB_PASSWORD":             "testpass",
+				"DB_APP_USER":             "root",
+				"DB_APP_PASSWORD":         "rootpass",
+				"DB_USER":                 "root",
+				"DB_PASSWORD":             "rootpass",
 				"DB_APP_CONNECTION_LIMIT": "5",
 				"DB_CONNECTION_LIMIT":     "5",
-				"AUTHZ_URL":               authorizerURL,
+				"AUTHZ_URL":               "http://authorizer:8080",
 				"AUTHZ_CLIENT_ID":         "test_client",
 				"PORT":                    "3000",
 			},
 			WaitingFor: wait.ForHTTP("/metrics").WithPort("3000").WithStartupTimeout(120 * time.Second),
+			Networks:   []string{networkName},
 		},
 		Started: true,
 	})
@@ -138,7 +226,7 @@ func TestE2EWithFullStack(t *testing.T) {
 	})
 
 	t.Run("PublicAPIAccess", func(t *testing.T) {
-		testPublicAPIAccess(t, baseURL)
+		testPublicAPIAccessEmpty(t, baseURL)
 	})
 
 	t.Run("VersionHeader", func(t *testing.T) {
@@ -192,7 +280,7 @@ func testSwaggerUI(t *testing.T, baseURL string) {
 	}
 }
 
-func testPublicAPIAccess(t *testing.T, baseURL string) {
+func testPublicAPIAccessEmpty(t *testing.T, baseURL string) {
 	// Test public GET endpoint (should work without auth)
 	resp, err := http.Get(baseURL + "/api/data/app")
 	if err != nil {
@@ -200,11 +288,11 @@ func testPublicAPIAccess(t *testing.T, baseURL string) {
 	}
 	defer resp.Body.Close()
 
-	// Should return 200 with empty data or proper JSON
-	if resp.StatusCode != http.StatusOK {
+	// Should return 404 with proper JSON
+	if resp.StatusCode != 404 {
 		body, _ := io.ReadAll(resp.Body)
 		t.Logf("Response body: %s", string(body))
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		t.Errorf("Expected status 404, got %d", resp.StatusCode)
 	}
 
 	// Verify response is valid JSON
