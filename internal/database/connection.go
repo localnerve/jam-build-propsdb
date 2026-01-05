@@ -25,7 +25,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBAppPassword,
 			cfg.DBHost,
 			cfg.DBPort,
-			cfg.DBDatabase,
+			cfg.DBAppDatabase,
 		)
 		dialector = mysql.Open(dsn)
 
@@ -34,14 +34,14 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBHost,
 			cfg.DBAppUser,
 			cfg.DBAppPassword,
-			cfg.DBDatabase,
+			cfg.DBAppDatabase,
 			cfg.DBPort,
 		)
 		dialector = postgres.Open(dsn)
 
 	case "sqlite":
-		// For SQLite, DBDatabase is the file path
-		dialector = sqlite.Open(cfg.DBDatabase)
+		// For SQLite, DBAppDatabase is the file path
+		dialector = sqlite.Open(cfg.DBAppDatabase)
 
 	case "sqlserver", "mssql":
 		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
@@ -49,7 +49,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBAppPassword,
 			cfg.DBHost,
 			cfg.DBPort,
-			cfg.DBDatabase,
+			cfg.DBAppDatabase,
 		)
 		dialector = sqlserver.Open(dsn)
 
@@ -74,7 +74,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(cfg.DBAppConnectionLimit)
 	sqlDB.SetMaxIdleConns(cfg.DBAppConnectionLimit / 2)
 
-	log.Printf("Connected to %s database: %s", cfg.DBType, cfg.DBDatabase)
+	log.Printf("Connected to %s database: %s", cfg.DBType, cfg.DBAppDatabase)
 
 	return db, nil
 }
@@ -90,7 +90,7 @@ func ConnectUser(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBPassword,
 			cfg.DBHost,
 			cfg.DBPort,
-			cfg.DBDatabase,
+			cfg.DBAppDatabase,
 		)
 		dialector = mysql.Open(dsn)
 
@@ -99,14 +99,14 @@ func ConnectUser(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBHost,
 			cfg.DBUser,
 			cfg.DBPassword,
-			cfg.DBDatabase,
+			cfg.DBAppDatabase,
 			cfg.DBPort,
 		)
 		dialector = postgres.Open(dsn)
 
 	case "sqlite":
 		// For SQLite, use the same connection (no separate user credentials)
-		dialector = sqlite.Open(cfg.DBDatabase)
+		dialector = sqlite.Open(cfg.DBAppDatabase)
 
 	case "sqlserver", "mssql":
 		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
@@ -114,7 +114,7 @@ func ConnectUser(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DBPassword,
 			cfg.DBHost,
 			cfg.DBPort,
-			cfg.DBDatabase,
+			cfg.DBAppDatabase,
 		)
 		dialector = sqlserver.Open(dsn)
 
@@ -139,7 +139,7 @@ func ConnectUser(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(cfg.DBConnectionLimit)
 	sqlDB.SetMaxIdleConns(cfg.DBConnectionLimit / 2)
 
-	log.Printf("Connected to %s user database: %s", cfg.DBType, cfg.DBDatabase)
+	log.Printf("Connected to %s user database: %s", cfg.DBType, cfg.DBAppDatabase)
 
 	return db, nil
 }

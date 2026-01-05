@@ -36,10 +36,10 @@ cp .env.example .env
 3. Configure your environment variables in `.env`:
 ```env
 PORT=3000
-DB_TYPE=mysql  # or postgres, sqlite, sqlserver
+DB_TYPE=mysql  # or mariadb, postgres, sqlite, sqlserver, mssql
 DB_HOST=localhost
 DB_PORT=3306
-DB_DATABASE=jam_build
+DB_APP_DATABASE=jam_build
 DB_APP_USER=jbadmin
 DB_APP_PASSWORD=your_password
 DB_USER=jbuser
@@ -68,7 +68,7 @@ Configure the database type using the `DB_TYPE` environment variable:
 
 - **MySQL/MariaDB**: `DB_TYPE=mysql` or `DB_TYPE=mariadb`
 - **PostgreSQL**: `DB_TYPE=postgres` or `DB_TYPE=postgresql`
-- **SQLite**: `DB_TYPE=sqlite` (set `DB_DATABASE` to file path)
+- **SQLite**: `DB_TYPE=sqlite` (set `DB_APP_DATABASE` to file path)
 - **SQL Server**: `DB_TYPE=sqlserver` or `DB_TYPE=mssql`
 
 ### Migrations
@@ -131,7 +131,7 @@ docker run -d \
   -e DB_TYPE=mysql \
   -e DB_HOST=host.docker.internal \
   -e DB_PORT=3306 \
-  -e DB_DATABASE=jam_build \
+  -e DB_APP_DATABASE=jam_build \
   -e DB_APP_USER=jbadmin \
   -e DB_APP_PASSWORD=password \
   -e DB_USER=jbuser \
@@ -144,7 +144,6 @@ docker run -d \
 ### Docker Compose (Example)
 
 ```yaml
-version: '3.8'
 
 services:
   propsdb:
@@ -155,13 +154,13 @@ services:
       - DB_TYPE=mysql
       - DB_HOST=mysql
       - DB_PORT=3306
-      - DB_DATABASE=jam_build
-      - DB_APP_USER=jbadmin
-      - DB_APP_PASSWORD=password
-      - DB_USER=jbuser
-      - DB_PASSWORD=password
-      - AUTHZ_URL=http://authorizer:8080
-      - AUTHZ_CLIENT_ID=your_client_id
+      - DB_APP_DATABASE=jam_build # App Database
+      - DB_APP_USER=jbadmin # App Username
+      - DB_APP_PASSWORD=password # App Password
+      - DB_USER=jbuser # User Username
+      - DB_PASSWORD=password # User Password
+      - AUTHZ_URL=http://authorizer:8080 # Authorizer URL
+      - AUTHZ_CLIENT_ID=00000000-0000-0000-0000-000000000000 # Authorizer Client ID
     depends_on:
       - mysql
       - authorizer
@@ -179,8 +178,16 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_TYPE=sqlite
-      - DATABASE_URL=authorizer.db
+      - DATABASE_TYPE=mysql
+      - DATABASE_URL=root:rootpassword@tcp(mysql:3306)/authorizer
+      - PORT=8080
+      - ADMIN_SECRET=deadbeefcafebabe01
+      - DATABASE_NAME=authorizer
+      - CLIENT_ID=00000000-0000-0000-0000-000000000000
+      - ORGANIZATION_NAME=your_organization_name
+      - ORGANIZATION_LOGO=url_to_your_organization_logo
+      - ROLES=user,admin
+      - REDIS_URL=redis://cache:6379
 
 volumes:
   mysql_data:

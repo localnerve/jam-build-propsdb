@@ -43,7 +43,7 @@ func HealthCheck(cfg *config.Config, db *gorm.DB) HealthCheckResult {
 		} else {
 			result.Database = "ok"
 			result.Details["database_type"] = cfg.DBType
-			result.Details["database_name"] = cfg.DBDatabase
+			result.Details["database_name"] = cfg.DBAppDatabase
 		}
 	}
 

@@ -12,16 +12,16 @@ type Config struct {
 	Port string
 
 	// Database configuration
-	DBType              string // mysql, postgres, sqlite, sqlserver, etc.
-	DBHost              string
-	DBPort              string
-	DBDatabase          string
-	DBAppUser           string
-	DBAppPassword       string
+	DBType               string // mysql, postgres, sqlite, sqlserver, etc.
+	DBHost               string
+	DBPort               string
+	DBAppDatabase        string
+	DBAppUser            string
+	DBAppPassword        string
 	DBAppConnectionLimit int
-	DBUser              string
-	DBPassword          string
-	DBConnectionLimit   int
+	DBUser               string
+	DBPassword           string
+	DBConnectionLimit    int
 
 	// Authorizer configuration
 	AuthzURL      string
@@ -35,7 +35,7 @@ func Load() (*Config, error) {
 		DBType:               getEnv("DB_TYPE", "mysql"),
 		DBHost:               getEnv("DB_HOST", "localhost"),
 		DBPort:               getEnv("DB_PORT", "3306"),
-		DBDatabase:           getEnv("DB_DATABASE", ""),
+		DBAppDatabase:        getEnv("DB_APP_DATABASE", ""),
 		DBAppUser:            getEnv("DB_APP_USER", ""),
 		DBAppPassword:        getEnv("DB_APP_PASSWORD", ""),
 		DBAppConnectionLimit: getEnvAsInt("DB_APP_CONNECTION_LIMIT", 5),
@@ -47,8 +47,8 @@ func Load() (*Config, error) {
 	}
 
 	// Validate required fields
-	if cfg.DBDatabase == "" {
-		return nil, fmt.Errorf("DB_DATABASE is required")
+	if cfg.DBAppDatabase == "" {
+		return nil, fmt.Errorf("DB_APP_DATABASE is required")
 	}
 	if cfg.DBAppUser == "" {
 		return nil, fmt.Errorf("DB_APP_USER is required")

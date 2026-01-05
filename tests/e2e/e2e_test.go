@@ -136,9 +136,6 @@ func TestE2EWithFullStack(t *testing.T) {
 		}
 	}()
 
-	// Build and start PropsDB service
-	propsdbResourceReaperSessionID := uuid.New().String()
-
 	// Check if propsdb-test image exists
 	imageName := "propsdb-test:latest"
 	imageExists, err := imageExists(ctx, imageName)
@@ -150,6 +147,9 @@ func TestE2EWithFullStack(t *testing.T) {
 	var propsdbContainer testcontainers.Container
 
 	if !imageExists {
+		// Build and start PropsDB service
+		propsdbResourceReaperSessionID := uuid.New().String()
+
 		t.Logf("Image %s does not exist, building...", imageName)
 		propsdbBuilderContainer, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
@@ -172,7 +172,11 @@ func TestE2EWithFullStack(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to build propsdb-test-builder: %v", err)
 		}
-		defer propsdbBuilderContainer.Terminate(ctx)
+		defer func() {
+			if err := propsdbBuilderContainer.Terminate(ctx); err != nil {
+				t.Logf("Failed to terminate PropsDB Builder: %v", err)
+			}
+		}()
 
 		propsdbContainer, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
@@ -195,7 +199,7 @@ func TestE2EWithFullStack(t *testing.T) {
 					"DB_TYPE":                 "mysql",
 					"DB_HOST":                 "mariadb",
 					"DB_PORT":                 "3306",
-					"DB_DATABASE":             "testdb",
+					"DB_APP_DATABASE":         "testdb",
 					"DB_APP_USER":             "root",
 					"DB_APP_PASSWORD":         "rootpass",
 					"DB_USER":                 "root",
@@ -221,7 +225,7 @@ func TestE2EWithFullStack(t *testing.T) {
 					"DB_TYPE":                 "mysql",
 					"DB_HOST":                 "mariadb",
 					"DB_PORT":                 "3306",
-					"DB_DATABASE":             "testdb",
+					"DB_APP_DATABASE":         "testdb",
 					"DB_APP_USER":             "root",
 					"DB_APP_PASSWORD":         "rootpass",
 					"DB_USER":                 "root",
@@ -238,7 +242,6 @@ func TestE2EWithFullStack(t *testing.T) {
 			Started: true,
 		})
 	}
-
 	if err != nil {
 		t.Fatalf("Failed to start PropsDB: %v", err)
 	}

@@ -68,7 +68,7 @@ propsdb-claude/
 DB_TYPE=mysql  # or postgres, sqlite, sqlserver
 DB_HOST=localhost
 DB_PORT=3306
-DB_DATABASE=jam_build
+DB_APP_DATABASE=jam_build
 ```
 
 #### Authentication & Authorization

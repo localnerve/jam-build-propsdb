@@ -14,7 +14,7 @@ go build -o healthcheck ./cmd/healthcheck
 export DB_TYPE=mysql
 export DB_HOST=localhost
 export DB_PORT=3306
-export DB_DATABASE=jam_build
+export DB_APP_DATABASE=jam_build
 export DB_APP_USER=jbadmin
 export DB_APP_PASSWORD=password
 export AUTHZ_URL=http://localhost:8080
@@ -34,7 +34,7 @@ docker run --rm \
   -e DB_TYPE=mysql \
   -e DB_HOST=mariadb \
   -e DB_PORT=3306 \
-  -e DB_DATABASE=jam_build \
+  -e DB_APP_DATABASE=jam_build \
   -e DB_APP_USER=jbadmin \
   -e DB_APP_PASSWORD=password \
   -e AUTHZ_URL=http://authorizer:8080 \

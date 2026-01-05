@@ -107,7 +107,7 @@ Application entry point that:
 
 Configuration structure matching Node.js environment variables:
 - `DB_TYPE` - Database type: "mysql", "postgres", "sqlite", "sqlserver", etc. (any GORM-supported database)
-- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_APP_USER`, `DB_APP_PASSWORD`, `DB_APP_CONNECTION_LIMIT`
+- `DB_HOST`, `DB_PORT`, `DB_APP_DATABASE`, `DB_APP_USER`, `DB_APP_PASSWORD`, `DB_APP_CONNECTION_LIMIT`
 - `DB_USER`, `DB_PASSWORD`, `DB_CONNECTION_LIMIT`
 - `AUTHZ_URL`, `AUTHZ_CLIENT_ID`
 - `PORT` - Server port (default: 3000)

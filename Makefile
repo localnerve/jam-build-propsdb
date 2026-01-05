@@ -14,6 +14,7 @@ SWAGGER_DIR=docs/api
 DOCKER_MARIADB_IMAGE=mariadb:12.1.2
 DOCKER_POSTGRES_IMAGE=postgres:18-alpine
 DOCKER_AUTHZ_IMAGE=localnerve/authorizer:1.5.3
+DOCKER_ENV_FILE=.env.dev
 
 TEST_ENV=DOCKER_MARIADB_IMAGE=$(DOCKER_MARIADB_IMAGE) DOCKER_POSTGRES_IMAGE=$(DOCKER_POSTGRES_IMAGE) DOCKER_AUTHZ_IMAGE=$(DOCKER_AUTHZ_IMAGE)
 
@@ -106,19 +107,19 @@ docker-build: ## Build Docker image
 
 docker-run: ## Run Docker container
 	@echo "Running Docker container..."
-	docker run -p 3000:3000 --env-file .env $(DOCKER_IMAGE):$(DOCKER_TAG)
+	docker run -p 3000:3000 --env-file $(DOCKER_ENV_FILE) $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-compose-up: ## Start all services with Docker Compose
 	@echo "Starting Docker Compose services..."
-	docker-compose up -d
+	docker-compose --env-file $(DOCKER_ENV_FILE) up -d
 	@echo "Services started. Use 'make docker-compose-logs' to view logs"
 
 docker-compose-down: ## Stop all Docker Compose services
 	@echo "Stopping Docker Compose services..."
-	docker-compose down
+	docker-compose --env-file $(DOCKER_ENV_FILE) down
 
 docker-compose-logs: ## View Docker Compose logs
-	docker-compose logs -f
+	docker-compose --env-file $(DOCKER_ENV_FILE) logs -f
 
 swagger: ## Generate OpenAPI/Swagger documentation
 	@echo "Generating Swagger documentation..."

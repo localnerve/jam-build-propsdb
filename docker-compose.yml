@@ -1,30 +1,33 @@
-version: '3.8'
-
+# PropsDB Fullstack Docker Compose - propsdb, database, authorizer, cache
+# PropsDB depends on the authorizer and a database service
+# This is used for development, testing, and as a reference for how to use propsDB in an application
+name: propsdb
 services:
   # PropsDB Go Fiber Service
   propsdb:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: propsdb
+    image: propsdb
+    container_name: propsdb-api
     ports:
-      - "3000:3000"
+      - "${PORT}:${PORT}"
     environment:
-      - PORT=3000
-      - DB_TYPE=mysql
-      - DB_HOST=mariadb
-      - DB_PORT=3306
-      - DB_DATABASE=jam_build
-      - DB_APP_USER=jbadmin
-      - DB_APP_PASSWORD=admin_password
-      - DB_USER=jbuser
-      - DB_PASSWORD=user_password
-      - DB_APP_CONNECTION_LIMIT=5
-      - DB_CONNECTION_LIMIT=5
-      - AUTHZ_URL=http://authorizer:8080
-      - AUTHZ_CLIENT_ID=${AUTHZ_CLIENT_ID:-your_client_id_here}
+      - PORT=${PORT}
+      - DB_TYPE=${DB_TYPE}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_APP_DATABASE=${DB_APP_DATABASE}
+      - DB_APP_USER=${DB_APP_USER}
+      - DB_APP_PASSWORD=${DB_APP_PASSWORD}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_APP_CONNECTION_LIMIT=${DB_APP_CONNECTION_LIMIT}
+      - DB_CONNECTION_LIMIT=${DB_CONNECTION_LIMIT}
+      - AUTHZ_URL=${AUTHZ_URL}
+      - AUTHZ_CLIENT_ID=${AUTHZ_CLIENT_ID}
     depends_on:
-      mariadb:
+      database:
         condition: service_healthy
       authorizer:
         condition: service_started
@@ -32,51 +35,62 @@ services:
       - propsdb-network
     restart: unless-stopped
 
-  # MariaDB Database
-  mariadb:
-    image: mariadb:11.2
-    container_name: propsdb-mariadb
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=jam_build
-      - MYSQL_USER=jbadmin
-      - MYSQL_PASSWORD=admin_password
-    volumes:
-      - mariadb_data:/var/lib/mysql
-      - ./migrations/mysql:/docker-entrypoint-initdb.d:ro
+  # Database Service
+  database:
+    image: ${DB_IMAGE}
+    container_name: propsdb-database
     ports:
-      - "3306:3306"
-    networks:
-      - propsdb-network
+      - "${DB_PORT}:${DB_PORT}"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_APP_DATABASE}
+      - MYSQL_USER=${DB_APP_USER}
+      - MYSQL_PASSWORD=${DB_APP_PASSWORD}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
+      timeout: 20s
       retries: 5
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./data/initdb/${DB_TYPE}:/docker-entrypoint-initdb.d
+      # - ./data/migrations/${DB_TYPE}:/docker-entrypoint-migrations.d
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  # The cache - Used by authorizer for session storage
+  cache:
+    image: redis:8.4.0
+    container_name: propsdb-cache
+    ports:
+      - 6379:6379
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - cache:/data
+    networks:
+      - propsdb-network
     restart: unless-stopped
 
   # Authorizer Service
   authorizer:
     image: localnerve/authorizer:1.5.3
     container_name: propsdb-authorizer
-    environment:
-      - DATABASE_TYPE=mysql
-      - DATABASE_URL=root:rootpassword@tcp(mariadb:3306)/authorizer?parseTime=true
-      - PORT=8080
-      - ADMIN_SECRET=${ADMIN_SECRET:-admin_secret_change_me}
-      - COOKIE_NAME=cookie_session
-      - DISABLE_PLAYGROUND=false
-      - DISABLE_STRONG_PASSWORD=false
-      - DISABLE_EMAIL_VERIFICATION=true
-      - DISABLE_BASIC_AUTHENTICATION=false
-      - DISABLE_MAGIC_LINK_LOGIN=true
-      - DISABLE_LOGIN_PAGE=false
-      - DISABLE_SIGN_UP=false
-      - ROLES=user,admin
     ports:
-      - "8080:8080"
+      - "${AUTHZ_PORT}:${AUTHZ_PORT}"
+    environment:
+      - ENV=production
+      - DATABASE_TYPE=${DB_TYPE}
+      - DATABASE_URL=root:${DB_ROOT_PASSWORD}@tcp(database:${DB_PORT})/${AUTHZ_DATABASE}
+      - PORT=${AUTHZ_PORT}
+      - ADMIN_SECRET=${AUTHZ_ADMIN_SECRET}
+      - DATABASE_NAME=${AUTHZ_DATABASE}
+      - CLIENT_ID=${AUTHZ_CLIENT_ID}
+      - ORGANIZATION_NAME=${AUTHZ_ORGANIZATION_NAME}
+      - ORGANIZATION_LOGO=${AUTHZ_ORGANIZATION_LOGO}
+      - ROLES=user,admin
+      - REDIS_URL=redis://cache:6379
     depends_on:
-      mariadb:
+      database:
         condition: service_healthy
     networks:
       - propsdb-network
@@ -99,5 +113,6 @@ networks:
     driver: bridge
 
 volumes:
-  mariadb_data:
-    driver: local
+  dbdata:
+  cache:
+  backup:
