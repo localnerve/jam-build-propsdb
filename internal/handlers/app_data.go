@@ -16,6 +16,17 @@ type AppDataHandler struct {
 }
 
 // GetAppProperties handles GET /api/data/app/:document/:collection
+// @Summary Get application properties
+// @Description Get properties for a specific application document and collection
+// @Tags AppData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param collection path string true "Collection ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/app/{document}/{collection} [get]
 func (h *AppDataHandler) GetAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 	collection := c.Params("collection")
@@ -36,6 +47,17 @@ func (h *AppDataHandler) GetAppProperties(c *fiber.Ctx) error {
 }
 
 // GetAppCollectionsAndProperties handles GET /api/data/app/:document?collections=...
+// @Summary Get application collections and properties
+// @Description Get all collections and properties for a specific application document
+// @Tags AppData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param collections query string false "Comma-separated list of collections to filter"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/app/{document} [get]
 func (h *AppDataHandler) GetAppCollectionsAndProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 	collectionsParam := c.Query("collections", "")
@@ -61,6 +83,15 @@ func (h *AppDataHandler) GetAppCollectionsAndProperties(c *fiber.Ctx) error {
 }
 
 // GetAppDocumentsCollectionsAndProperties handles GET /api/data/app
+// @Summary Get all application documents, collections, and properties
+// @Description Get all application data
+// @Tags AppData
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/app [get]
 func (h *AppDataHandler) GetAppDocumentsCollectionsAndProperties(c *fiber.Ctx) error {
 	result, err := services.GetApplicationDocumentsCollectionsAndProperties(h.DB)
 	if err != nil {
@@ -78,6 +109,18 @@ func (h *AppDataHandler) GetAppDocumentsCollectionsAndProperties(c *fiber.Ctx) e
 }
 
 // SetAppProperties handles POST /api/data/app/:document
+// @Summary Set application properties
+// @Description Set properties for a specific application document
+// @Tags AppData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param body body object true "Properties to set"
+// @Success 200 {object} utils.SuccessResponseStruct
+// @Failure 400 {object} utils.ErrorResponseStruct
+// @Failure 409 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/app/{document} [post]
 func (h *AppDataHandler) SetAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
@@ -106,6 +149,19 @@ func (h *AppDataHandler) SetAppProperties(c *fiber.Ctx) error {
 }
 
 // DeleteAppCollection handles DELETE /api/data/app/:document/:collection
+// @Summary Delete application collection
+// @Description Delete a specific collection from an application document
+// @Tags AppData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param collection path string true "Collection ID"
+// @Param body body object true "Version check"
+// @Success 200 {object} utils.SuccessResponseStruct
+// @Failure 400 {object} utils.ErrorResponseStruct
+// @Failure 409 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/app/{document}/{collection} [delete]
 func (h *AppDataHandler) DeleteAppCollection(c *fiber.Ctx) error {
 	document := c.Params("document")
 	collection := c.Params("collection")
@@ -130,6 +186,18 @@ func (h *AppDataHandler) DeleteAppCollection(c *fiber.Ctx) error {
 }
 
 // DeleteAppProperties handles DELETE /api/data/app/:document
+// @Summary Delete application properties
+// @Description Delete properties from an application document
+// @Tags AppData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param body body object true "Properties to delete"
+// @Success 200 {object} utils.SuccessResponseStruct
+// @Failure 400 {object} utils.ErrorResponseStruct
+// @Failure 409 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/app/{document} [delete]
 func (h *AppDataHandler) DeleteAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 

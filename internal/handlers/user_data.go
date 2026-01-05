@@ -37,6 +37,18 @@ func getUserID(c *fiber.Ctx) (string, error) {
 }
 
 // GetUserProperties handles GET /api/data/user/:document/:collection
+// @Summary Get user properties
+// @Description Get properties for a specific user document and collection
+// @Tags UserData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param collection path string true "Collection ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 403 {object} utils.ErrorResponseStruct
+// @Failure 404 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/user/{document}/{collection} [get]
 func (h *UserDataHandler) GetUserProperties(c *fiber.Ctx) error {
 	userID, err := getUserID(c)
 	if err != nil {
@@ -62,6 +74,18 @@ func (h *UserDataHandler) GetUserProperties(c *fiber.Ctx) error {
 }
 
 // GetUserCollectionsAndProperties handles GET /api/data/user/:document?collections=...
+// @Summary Get user collections and properties
+// @Description Get all collections and properties for a specific user document
+// @Tags UserData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param collections query string false "Comma-separated list of collections to filter"
+// @Success 200 {object} map[string]interface{}
+// @Failure 403 {object} utils.ErrorResponseStruct
+// @Failure 404 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/user/{document} [get]
 func (h *UserDataHandler) GetUserCollectionsAndProperties(c *fiber.Ctx) error {
 	userID, err := getUserID(c)
 	if err != nil {
@@ -92,6 +116,16 @@ func (h *UserDataHandler) GetUserCollectionsAndProperties(c *fiber.Ctx) error {
 }
 
 // GetUserDocumentsCollectionsAndProperties handles GET /api/data/user
+// @Summary Get all user documents, collections, and properties
+// @Description Get all user data
+// @Tags UserData
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 403 {object} utils.ErrorResponseStruct
+// @Failure 404 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/user [get]
 func (h *UserDataHandler) GetUserDocumentsCollectionsAndProperties(c *fiber.Ctx) error {
 	userID, err := getUserID(c)
 	if err != nil {
@@ -114,6 +148,19 @@ func (h *UserDataHandler) GetUserDocumentsCollectionsAndProperties(c *fiber.Ctx)
 }
 
 // SetUserProperties handles POST /api/data/user/:document
+// @Summary Set user properties
+// @Description Set properties for a specific user document
+// @Tags UserData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param body body object true "Properties to set"
+// @Success 200 {object} utils.SuccessResponseStruct
+// @Failure 400 {object} utils.ErrorResponseStruct
+// @Failure 403 {object} utils.ErrorResponseStruct
+// @Failure 409 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/user/{document} [post]
 func (h *UserDataHandler) SetUserProperties(c *fiber.Ctx) error {
 	userID, err := getUserID(c)
 	if err != nil {
@@ -147,6 +194,20 @@ func (h *UserDataHandler) SetUserProperties(c *fiber.Ctx) error {
 }
 
 // DeleteUserCollection handles DELETE /api/data/user/:document/:collection
+// @Summary Delete user collection
+// @Description Delete a specific collection from a user document
+// @Tags UserData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param collection path string true "Collection ID"
+// @Param body body object true "Version check"
+// @Success 200 {object} utils.SuccessResponseStruct
+// @Failure 400 {object} utils.ErrorResponseStruct
+// @Failure 403 {object} utils.ErrorResponseStruct
+// @Failure 409 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/user/{document}/{collection} [delete]
 func (h *UserDataHandler) DeleteUserCollection(c *fiber.Ctx) error {
 	userID, err := getUserID(c)
 	if err != nil {
@@ -176,6 +237,19 @@ func (h *UserDataHandler) DeleteUserCollection(c *fiber.Ctx) error {
 }
 
 // DeleteUserProperties handles DELETE /api/data/user/:document
+// @Summary Delete user properties
+// @Description Delete properties from a user document
+// @Tags UserData
+// @Accept json
+// @Produce json
+// @Param document path string true "Document ID"
+// @Param body body object true "Properties to delete"
+// @Success 200 {object} utils.SuccessResponseStruct
+// @Failure 400 {object} utils.ErrorResponseStruct
+// @Failure 403 {object} utils.ErrorResponseStruct
+// @Failure 409 {object} utils.ErrorResponseStruct
+// @Failure 500 {object} utils.ErrorResponseStruct
+// @Router /data/user/{document} [delete]
 func (h *UserDataHandler) DeleteUserProperties(c *fiber.Ctx) error {
 	userID, err := getUserID(c)
 	if err != nil {

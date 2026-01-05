@@ -57,3 +57,23 @@ func MutationSuccessResponse(c *fiber.Ctx, newVersion uint64, affectedRows int64
 		"affectedRows": affectedRows,
 	})
 }
+
+// ErrorResponseStruct defines the schema for error responses
+type ErrorResponseStruct struct {
+	Status       int    `json:"status"`
+	Message      string `json:"message"`
+	Ok           bool   `json:"ok"`
+	Timestamp    string `json:"timestamp"`
+	URL          string `json:"url"`
+	Type         string `json:"type,omitempty"`
+	VersionError bool   `json:"versionError,omitempty"`
+}
+
+// SuccessResponseStruct defines the schema for mutation success responses
+type SuccessResponseStruct struct {
+	Message      string `json:"message"`
+	Ok           bool   `json:"ok"`
+	NewVersion   uint64 `json:"newVersion"`
+	Timestamp    string `json:"timestamp"`
+	AffectedRows int64  `json:"affectedRows"`
+}

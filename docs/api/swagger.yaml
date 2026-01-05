@@ -1,4 +1,35 @@
 basePath: /api
+definitions:
+  utils.ErrorResponseStruct:
+    properties:
+      message:
+        type: string
+      ok:
+        type: boolean
+      status:
+        type: integer
+      timestamp:
+        type: string
+      type:
+        type: string
+      url:
+        type: string
+      versionError:
+        type: boolean
+    type: object
+  utils.SuccessResponseStruct:
+    properties:
+      affectedRows:
+        type: integer
+      message:
+        type: string
+      newVersion:
+        type: integer
+      ok:
+        type: boolean
+      timestamp:
+        type: string
+    type: object
 host: localhost:3000
 info:
   contact:
@@ -12,7 +43,455 @@ info:
   termsOfService: http://swagger.io/terms/
   title: PropsDB API
   version: 1.0.0
-paths: {}
+paths:
+  /data/app:
+    get:
+      consumes:
+      - application/json
+      description: Get all application data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Get all application documents, collections, and properties
+      tags:
+      - AppData
+  /data/app/{document}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete properties from an application document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Properties to delete
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponseStruct'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Delete application properties
+      tags:
+      - AppData
+    get:
+      consumes:
+      - application/json
+      description: Get all collections and properties for a specific application document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Comma-separated list of collections to filter
+        in: query
+        name: collections
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Get application collections and properties
+      tags:
+      - AppData
+    post:
+      consumes:
+      - application/json
+      description: Set properties for a specific application document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Properties to set
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponseStruct'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Set application properties
+      tags:
+      - AppData
+  /data/app/{document}/{collection}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific collection from an application document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Collection ID
+        in: path
+        name: collection
+        required: true
+        type: string
+      - description: Version check
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponseStruct'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Delete application collection
+      tags:
+      - AppData
+    get:
+      consumes:
+      - application/json
+      description: Get properties for a specific application document and collection
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Collection ID
+        in: path
+        name: collection
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Get application properties
+      tags:
+      - AppData
+  /data/user:
+    get:
+      consumes:
+      - application/json
+      description: Get all user data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Get all user documents, collections, and properties
+      tags:
+      - UserData
+  /data/user/{document}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete properties from a user document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Properties to delete
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponseStruct'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Delete user properties
+      tags:
+      - UserData
+    get:
+      consumes:
+      - application/json
+      description: Get all collections and properties for a specific user document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Comma-separated list of collections to filter
+        in: query
+        name: collections
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Get user collections and properties
+      tags:
+      - UserData
+    post:
+      consumes:
+      - application/json
+      description: Set properties for a specific user document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Properties to set
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponseStruct'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Set user properties
+      tags:
+      - UserData
+  /data/user/{document}/{collection}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific collection from a user document
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Collection ID
+        in: path
+        name: collection
+        required: true
+        type: string
+      - description: Version check
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.SuccessResponseStruct'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Delete user collection
+      tags:
+      - UserData
+    get:
+      consumes:
+      - application/json
+      description: Get properties for a specific user document and collection
+      parameters:
+      - description: Document ID
+        in: path
+        name: document
+        required: true
+        type: string
+      - description: Collection ID
+        in: path
+        name: collection
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponseStruct'
+      summary: Get user properties
+      tags:
+      - UserData
 schemes:
 - http
 - https
