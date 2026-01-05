@@ -6,6 +6,7 @@ import (
 	"github.com/localnerve/propsdb/internal/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 // DeleteApplicationCollection deletes a collection from an application document
@@ -16,7 +17,8 @@ func DeleteApplicationCollection(db *gorm.DB, documentName string, version uint6
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -26,16 +28,19 @@ func DeleteApplicationCollection(db *gorm.DB, documentName string, version uint6
 			return fmt.Errorf("E_VERSION")
 		}
 
-		// Find collection
+		// Find collection associated with this document
 		var collection models.ApplicationCollection
-		err := tx.Table("application_collections c").
-			Select("c.*").
-			Joins("JOIN application_documents_collections dc ON c.collection_id = dc.application_collection_collection_id").
-			Where("dc.application_document_document_id = ? AND c.collection_name = ?", doc.DocumentID, collectionName).
-			First(&collection).Error
+		err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Model(&doc).Where("collection_name = ?", collectionName).Association("Collections").Find(&collection)
 
 		if err != nil {
-			return fmt.Errorf("collection not found: %w", err)
+			return fmt.Errorf("collection not found: %w", err) // GORM association find returns error? Usually nil if empty?
+		}
+		// Check if it was actually found (GORM Find might not error on empty result for associations depending on usage,
+		// but Model Association Find usually fills struct or slice. If ID is 0, it wasn't validly found).
+		if collection.CollectionID == 0 {
+			// Try to find it explicitly to confirm error or just return not found
+			return fmt.Errorf("collection not found")
 		}
 
 		// Remove association between document and collection using GORM
@@ -45,10 +50,13 @@ func DeleteApplicationCollection(db *gorm.DB, documentName string, version uint6
 
 		// Check if collection is orphaned (not associated with any other documents)
 		var count int64
-		tx.Model(&models.ApplicationDocument{}).
-			Joins("JOIN application_documents_collections ON application_documents.document_id = application_documents_collections.application_document_document_id").
-			Where("application_documents_collections.application_collection_collection_id = ?", collection.CollectionID).
-			Count(&count)
+		// We need to count associations for this collection using the join table
+		// GORM standard way:
+		if err := tx.Table("application_documents_collections").
+			Where("collection_id = ?", collection.CollectionID).
+			Count(&count).Error; err != nil {
+			return err
+		}
 
 		// If the collection is orphaned, delete its properties first, then the collection
 		if count == 0 {
@@ -93,7 +101,8 @@ func DeleteApplicationDocument(db *gorm.DB, documentName string, version uint64)
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -133,7 +142,8 @@ func DeleteApplicationProperties(db *gorm.DB, documentName string, version uint6
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -146,15 +156,12 @@ func DeleteApplicationProperties(db *gorm.DB, documentName string, version uint6
 		documentUpdated := false
 
 		for _, coll := range collections {
-			// Find collection
+			// Find collection for this document
 			var collection models.ApplicationCollection
-			err := tx.Table("application_collections c").
-				Select("c.*").
-				Joins("JOIN application_documents_collections dc ON c.collection_id = dc.application_collection_collection_id").
-				Where("dc.application_document_document_id = ? AND c.collection_name = ?", doc.DocumentID, coll.Collection).
-				First(&collection).Error
+			err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+				Model(&doc).Where("collection_name = ?", coll.Collection).Association("Collections").Find(&collection)
 
-			if err != nil {
+			if err != nil || collection.CollectionID == 0 {
 				continue // Collection not found, skip
 			}
 
@@ -168,13 +175,11 @@ func DeleteApplicationProperties(db *gorm.DB, documentName string, version uint6
 				// Delete specific properties
 				for _, propName := range coll.Properties {
 					var property models.ApplicationProperty
-					err := tx.Table("application_properties p").
-						Select("p.*").
-						Joins("JOIN application_collections_properties cp ON p.property_id = cp.property_id").
-						Where("cp.collection_id = ? AND p.property_name = ?", collection.CollectionID, propName).
-						First(&property).Error
+					// Find property in this collection
+					err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+						Model(&collection).Where("property_name = ?", propName).Association("Properties").Find(&property)
 
-					if err == nil {
+					if err == nil && property.PropertyID != 0 {
 						if err := tx.Model(&collection).Association("Properties").Delete(&property); err != nil {
 							return err
 						}
@@ -218,7 +223,8 @@ func DeleteUserCollection(db *gorm.DB, userID, documentName string, version uint
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var doc models.UserDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -229,14 +235,14 @@ func DeleteUserCollection(db *gorm.DB, userID, documentName string, version uint
 		}
 
 		var collection models.UserCollection
-		err := tx.Table("user_collections c").
-			Select("c.*").
-			Joins("JOIN user_documents_collections dc ON c.collection_id = dc.user_collection_collection_id").
-			Where("dc.user_document_document_id = ? AND c.collection_name = ?", doc.DocumentID, collectionName).
-			First(&collection).Error
+		err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Model(&doc).Where("collection_name = ?", collectionName).Association("Collections").Find(&collection)
 
 		if err != nil {
 			return fmt.Errorf("collection not found: %w", err)
+		}
+		if collection.CollectionID == 0 {
+			return fmt.Errorf("collection not found")
 		}
 
 		if err := tx.Model(&doc).Association("Collections").Delete(&collection); err != nil {
@@ -245,10 +251,11 @@ func DeleteUserCollection(db *gorm.DB, userID, documentName string, version uint
 
 		// Check if collection is orphaned
 		var count int64
-		tx.Model(&models.UserDocument{}).
-			Joins("JOIN user_documents_collections ON user_documents.document_id = user_documents_collections.user_document_document_id").
-			Where("user_documents_collections.user_collection_collection_id = ?", collection.CollectionID).
-			Count(&count)
+		if err := tx.Table("user_documents_collections").
+			Where("collection_id = ?", collection.CollectionID).
+			Count(&count).Error; err != nil {
+			return err
+		}
 
 		// If orphaned, delete properties first, then collection
 		if count == 0 {
@@ -287,7 +294,8 @@ func DeleteUserDocument(db *gorm.DB, userID, documentName string, version uint64
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var doc models.UserDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -324,7 +332,8 @@ func DeleteUserProperties(db *gorm.DB, userID, documentName string, version uint
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var doc models.UserDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -338,13 +347,10 @@ func DeleteUserProperties(db *gorm.DB, userID, documentName string, version uint
 
 		for _, coll := range collections {
 			var collection models.UserCollection
-			err := tx.Table("user_collections c").
-				Select("c.*").
-				Joins("JOIN user_documents_collections dc ON c.collection_id = dc.user_collection_collection_id").
-				Where("dc.user_document_document_id = ? AND c.collection_name = ?", doc.DocumentID, coll.Collection).
-				First(&collection).Error
+			err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+				Model(&doc).Where("collection_name = ?", coll.Collection).Association("Collections").Find(&collection)
 
-			if err != nil {
+			if err != nil || collection.CollectionID == 0 {
 				continue
 			}
 
@@ -356,13 +362,10 @@ func DeleteUserProperties(db *gorm.DB, userID, documentName string, version uint
 			} else {
 				for _, propName := range coll.Properties {
 					var property models.UserProperty
-					err := tx.Table("user_properties p").
-						Select("p.*").
-						Joins("JOIN user_collections_properties cp ON p.property_id = cp.property_id").
-						Where("cp.collection_id = ? AND p.property_name = ?", collection.CollectionID, propName).
-						First(&property).Error
+					err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+						Model(&collection).Where("property_name = ?", propName).Association("Properties").Find(&property)
 
-					if err == nil {
+					if err == nil && property.PropertyID != 0 {
 						if err := tx.Model(&collection).Association("Properties").Delete(&property); err != nil {
 							return err
 						}
@@ -399,21 +402,46 @@ func DeleteUserProperties(db *gorm.DB, userID, documentName string, version uint
 
 // cleanupApplicationOrphans removes orphaned collections and properties
 func cleanupApplicationOrphans(tx *gorm.DB) error {
+	// Simple approach: Use NOT IN subqueries but with mapped table names if possible.
+	// However, GORM doesn't make subqueries on many2many join tables very elegant without raw SQL.
+	// But we can use the table names from the models if we really want to be safe,
+	// OR we can rely on standard "DELETE FROM [collection_table] WHERE id NOT IN (SELECT ...)"
+
+	// The problem described by the user was specific column names: `application_document_document_id`.
+	// The GORM default M2M table columns might be different.
+	// e.g. `application_document_id` vs `application_document_document_id`.
+
+	// Since we defined the join table in simpler terms in `data_service.go` logic before?
+	// The User error message showed: "Unknown column 'dc.application_document_document_id' in 'WHERE'"
+
+	// We should inspect `models/application.go` again to see the `gorm:"many2many:..."` tag.
+	// It was: `gorm:"many2many:application_documents_collections;joinForeignKey:document_id;joinReferences:collection_id"`
+	// So the columns are likely `document_id` and `collection_id` in the join table `application_documents_collections`.
+	// The OLD code was expecting `application_document_document_id`. This confirms the schema change hypothesis.
+
+	// So for orphan cleanup, we need to use the CORRECT column names.
+	// `application_documents_collections` table likely has `collection_id` (ref to collection) and `document_id` (ref to doc).
+
 	// Delete collections not associated with any document
 	if err := tx.Exec(`DELETE FROM application_collections 
-		WHERE collection_id NOT IN (SELECT application_collection_collection_id FROM application_documents_collections)`).Error; err != nil {
+		WHERE collection_id NOT IN (SELECT collection_id FROM application_documents_collections)`).Error; err != nil {
 		return err
 	}
 
 	// Delete collection-property associations for non-existent collections
+	// (This table `application_collections_properties` connects collection <-> property)
+	// Tag in model: `gorm:"many2many:application_collections_properties;joinForeignKey:collection_id;joinReferences:property_id"`
+	// So columns are `collection_id` and `property_id`.
+	// Wait, if we delete the collection, the M2M association rows might remain if not cascaded?
+
 	if err := tx.Exec(`DELETE FROM application_collections_properties 
-		WHERE application_collection_collection_id NOT IN (SELECT application_collection_collection_id FROM application_documents_collections)`).Error; err != nil {
+		WHERE collection_id NOT IN (SELECT collection_id FROM application_collections)`).Error; err != nil {
 		return err
 	}
 
 	// Delete properties not associated with any collection
 	if err := tx.Exec(`DELETE FROM application_properties 
-		WHERE property_id NOT IN (SELECT application_property_property_id FROM application_collections_properties)`).Error; err != nil {
+		WHERE property_id NOT IN (SELECT property_id FROM application_collections_properties)`).Error; err != nil {
 		return err
 	}
 
@@ -422,18 +450,21 @@ func cleanupApplicationOrphans(tx *gorm.DB) error {
 
 // cleanupUserOrphans removes orphaned user collections and properties
 func cleanupUserOrphans(tx *gorm.DB) error {
+	// UserDocument -> Collections: `user_documents_collections` (`document_id`, `collection_id`)
+	// UserCollection -> Properties: `user_collections_properties` (`collection_id`, `property_id`)
+
 	if err := tx.Exec(`DELETE FROM user_collections 
-		WHERE collection_id NOT IN (SELECT user_collection_collection_id FROM user_documents_collections)`).Error; err != nil {
+		WHERE collection_id NOT IN (SELECT collection_id FROM user_documents_collections)`).Error; err != nil {
 		return err
 	}
 
 	if err := tx.Exec(`DELETE FROM user_collections_properties 
-		WHERE user_collection_collection_id NOT IN (SELECT user_collection_collection_id FROM user_documents_collections)`).Error; err != nil {
+		WHERE collection_id NOT IN (SELECT collection_id FROM user_collections)`).Error; err != nil {
 		return err
 	}
 
 	if err := tx.Exec(`DELETE FROM user_properties 
-		WHERE property_id NOT IN (SELECT user_property_property_id FROM user_collections_properties)`).Error; err != nil {
+		WHERE property_id NOT IN (SELECT property_id FROM user_collections_properties)`).Error; err != nil {
 		return err
 	}
 

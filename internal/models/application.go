@@ -13,7 +13,7 @@ type ApplicationDocument struct {
 	DocumentVersion uint64 `gorm:"not null;default:0"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-	Collections     []ApplicationCollection `gorm:"many2many:application_documents_collections;"`
+	Collections     []ApplicationCollection `gorm:"many2many:application_documents_collections;joinForeignKey:document_id;joinReferences:collection_id"`
 }
 
 // ApplicationCollection represents a collection of properties
@@ -22,7 +22,7 @@ type ApplicationCollection struct {
 	CollectionName string `gorm:"size:255;not null"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-	Properties     []ApplicationProperty `gorm:"many2many:application_collections_properties;"`
+	Properties     []ApplicationProperty `gorm:"many2many:application_collections_properties;joinForeignKey:collection_id;joinReferences:property_id"`
 }
 
 // ApplicationProperty represents a single property with a JSON value

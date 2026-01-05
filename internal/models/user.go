@@ -14,7 +14,7 @@ type UserDocument struct {
 	DocumentVersion uint64 `gorm:"not null;default:0"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-	Collections     []UserCollection `gorm:"many2many:user_documents_collections;"`
+	Collections     []UserCollection `gorm:"many2many:user_documents_collections;joinForeignKey:document_id;joinReferences:collection_id"`
 }
 
 // UserCollection represents a collection of properties for users
@@ -23,7 +23,7 @@ type UserCollection struct {
 	CollectionName string `gorm:"size:255;not null"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-	Properties     []UserProperty `gorm:"many2many:user_collections_properties;"`
+	Properties     []UserProperty `gorm:"many2many:user_collections_properties;joinForeignKey:collection_id;joinReferences:property_id"`
 }
 
 // UserProperty represents a single property with a JSON value for users

@@ -46,10 +46,15 @@ services:
       - MYSQL_DATABASE=${DB_APP_DATABASE}
       - MYSQL_USER=${DB_APP_USER}
       - MYSQL_PASSWORD=${DB_APP_PASSWORD}
+      - AUTHZ_DATABASE=${AUTHZ_DATABASE}     # Added for init script
+      - DB_USER=${DB_USER}                   # Added for init script
+      - DB_PASSWORD=${DB_PASSWORD}           # Added for init script
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      timeout: 20s
+      interval: 10s
+      timeout: 5s
       retries: 5
+      start_period: 30s
     volumes:
       - dbdata:/var/lib/mysql
       - ./data/initdb/${DB_TYPE}:/docker-entrypoint-initdb.d

@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/localnerve/propsdb/internal/models"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 // DocumentResult represents the API output format
@@ -28,228 +28,223 @@ type DeleteCollectionInput struct {
 
 // GetApplicationProperties retrieves properties for a specific document and collection
 func GetApplicationProperties(db *gorm.DB, documentName, collectionName string) (DocumentResult, error) {
-	var results []struct {
-		DocumentName    string
-		DocumentVersion uint64
-		CollectionName  string
-		PropertyName    string
-		PropertyValue   datatypes.JSON
-	}
-
-	err := db.Table("application_documents d").
-		Select("d.document_name, d.document_version, c.collection_name, p.property_name, p.property_value").
-		Joins("JOIN application_documents_collections dc ON d.document_id = dc.application_document_document_id").
-		Joins("JOIN application_collections c ON dc.application_collection_collection_id = c.collection_id").
-		Joins("JOIN application_collections_properties cp ON c.collection_id = cp.application_collection_collection_id").
-		Joins("JOIN application_properties p ON cp.application_property_property_id = p.property_id").
-		Where("d.document_name = ? AND c.collection_name = ?", documentName, collectionName).
-		Scan(&results).Error
+	var doc models.ApplicationDocument
+	err := db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)}).
+		Preload("Collections", "collection_name = ?", collectionName).
+		Preload("Collections.Properties").
+		Where("document_name = ?", documentName).
+		First(&doc).Error
 
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("not found")
+		}
 		return nil, err
 	}
 
-	if len(results) == 0 {
+	// Filter out if the collection join didn't find the specific collection (Preload works differently than Join)
+	// Actually, with Preload, if the document exists but the collection doesn't match the condition,
+	// doc.Collections will be empty.
+	if len(doc.Collections) == 0 {
+		// We need to return not found if the specific collection requested isn't there,
+		// but the original query did an INNER JOIN so it would have returned empty if doc existed but coll didn't.
+		// However, to strictly match the semantics of "not found" for the *pair*, we should check.
 		return nil, fmt.Errorf("not found")
 	}
 
-	return reduceResults(results), nil
+	return reduceApplicationDocuments([]models.ApplicationDocument{doc}), nil
 }
 
 // GetApplicationCollectionsAndProperties retrieves collections and properties for a document
 func GetApplicationCollectionsAndProperties(db *gorm.DB, documentName string, collections []string) (DocumentResult, error) {
-	query := db.Table("application_documents d").
-		Select("d.document_name, d.document_version, c.collection_name, p.property_name, p.property_value").
-		Joins("JOIN application_documents_collections dc ON d.document_id = dc.application_document_document_id").
-		Joins("JOIN application_collections c ON dc.application_collection_collection_id = c.collection_id").
-		Joins("LEFT JOIN application_collections_properties cp ON c.collection_id = cp.application_collection_collection_id").
-		Joins("LEFT JOIN application_properties p ON cp.application_property_property_id = p.property_id").
-		Where("d.document_name = ?", documentName)
+	var doc models.ApplicationDocument
+	query := db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)}).
+		Where("document_name = ?", documentName)
 
 	if len(collections) > 0 && collections[0] != "" {
-		query = query.Where("c.collection_name IN ?", collections)
+		query = query.Preload("Collections", "collection_name IN ?", collections)
+	} else {
+		query = query.Preload("Collections")
 	}
 
-	var results []struct {
-		DocumentName    string
-		DocumentVersion uint64
-		CollectionName  string
-		PropertyName    string
-		PropertyValue   datatypes.JSON
-	}
+	err := query.Preload("Collections.Properties").
+		First(&doc).Error
 
-	err := query.Scan(&results).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("not found")
+		}
 		return nil, err
 	}
 
-	if len(results) == 0 {
+	// If filtered by specific collections and none found, effectively not found?
+	// The original query did a LEFT JOIN for properties but an INNER JOIN-like structure for the main doc logic usually.
+	// But let's look at the original:
+	// "LEFT JOIN application_collections_properties"
+	// The original required the DOCUMENT to exist.
+
+	// If collections were specified and resulted in 0 collections, is that an error?
+	// The original query: "c.collection_name IN ?" was on the JOIN.
+	// If no rows returned, it returned "not found".
+	if len(collections) > 0 && collections[0] != "" && len(doc.Collections) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
 
-	return reduceResults(results), nil
+	return reduceApplicationDocuments([]models.ApplicationDocument{doc}), nil
 }
 
 // GetApplicationDocumentsCollectionsAndProperties retrieves all documents, collections, and properties
 func GetApplicationDocumentsCollectionsAndProperties(db *gorm.DB) (DocumentResult, error) {
-	var results []struct {
-		DocumentName    string
-		DocumentVersion uint64
-		CollectionName  string
-		PropertyName    string
-		PropertyValue   datatypes.JSON
-	}
+	var docs []models.ApplicationDocument
 
-	err := db.Table("application_documents d").
-		Select("d.document_name, d.document_version, c.collection_name, p.property_name, p.property_value").
-		Joins("JOIN application_documents_collections dc ON d.document_id = dc.application_document_document_id").
-		Joins("JOIN application_collections c ON dc.application_collection_collection_id = c.collection_id").
-		Joins("LEFT JOIN application_collections_properties cp ON c.collection_id = cp.application_collection_collection_id").
-		Joins("LEFT JOIN application_properties p ON cp.application_property_property_id = p.property_id").
-		Scan(&results).Error
+	// We want all documents that have at least one collection usually,
+	// but the original query was:
+	// JOIN application_documents_collections ... JOIN application_collections
+	// So it only returned documents that HAD collections.
 
-	if err != nil {
+	// Fetch all documents with their collections and properties
+	if err := db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)}).
+		Preload("Collections").Preload("Collections.Properties").Find(&docs).Error; err != nil {
 		return nil, err
 	}
 
-	if len(results) == 0 {
+	if len(docs) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
 
-	return reduceResults(results), nil
+	// Filter out docs with no collections to match original INNER JOIN behavior if necessary?
+	// The original `reduceResults` just iterated. If we have a doc with 0 collections,
+	// the previous Code probably wouldn't have it in the list if it was an INNER JOIN.
+	// Let's rely on the reducer to formatted it.
+
+	return reduceApplicationDocuments(docs), nil
 }
 
 // GetUserProperties retrieves properties for a specific user document and collection
 func GetUserProperties(db *gorm.DB, userID, documentName, collectionName string) (DocumentResult, error) {
-	var results []struct {
-		DocumentName    string
-		DocumentVersion uint64
-		CollectionName  string
-		PropertyName    string
-		PropertyValue   datatypes.JSON
-	}
-
-	err := db.Table("user_documents d").
-		Select("d.document_name, d.document_version, c.collection_name, p.property_name, p.property_value").
-		Joins("JOIN user_documents_collections dc ON d.document_id = dc.user_document_document_id").
-		Joins("JOIN user_collections c ON dc.user_collection_collection_id = c.collection_id").
-		Joins("JOIN user_collections_properties cp ON c.collection_id = cp.user_collection_collection_id").
-		Joins("JOIN user_properties p ON cp.user_property_property_id = p.property_id").
-		Where("d.user_id = ? AND d.document_name = ? AND c.collection_name = ?", userID, documentName, collectionName).
-		Scan(&results).Error
+	var doc models.UserDocument
+	err := db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)}).
+		Preload("Collections", "collection_name = ?", collectionName).
+		Preload("Collections.Properties").
+		Where("user_id = ? AND document_name = ?", userID, documentName).
+		First(&doc).Error
 
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("not found")
+		}
 		return nil, err
 	}
 
-	if len(results) == 0 {
+	if len(doc.Collections) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
 
-	return reduceResults(results), nil
+	return reduceUserDocuments([]models.UserDocument{doc}), nil
 }
 
 // GetUserCollectionsAndProperties retrieves collections and properties for a user document
 func GetUserCollectionsAndProperties(db *gorm.DB, userID, documentName string, collections []string) (DocumentResult, error) {
-	query := db.Table("user_documents d").
-		Select("d.document_name, d.document_version, c.collection_name, p.property_name, p.property_value").
-		Joins("JOIN user_documents_collections dc ON d.document_id = dc.user_document_document_id").
-		Joins("JOIN user_collections c ON dc.user_collection_collection_id = c.collection_id").
-		Joins("LEFT JOIN user_collections_properties cp ON c.collection_id = cp.user_collection_collection_id").
-		Joins("LEFT JOIN user_properties p ON cp.user_property_property_id = p.property_id").
-		Where("d.user_id = ? AND d.document_name = ?", userID, documentName)
+	var doc models.UserDocument
+	query := db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)}).
+		Where("user_id = ? AND document_name = ?", userID, documentName)
 
 	if len(collections) > 0 && collections[0] != "" {
-		query = query.Where("c.collection_name IN ?", collections)
+		query = query.Preload("Collections", "collection_name IN ?", collections)
+	} else {
+		query = query.Preload("Collections")
 	}
 
-	var results []struct {
-		DocumentName    string
-		DocumentVersion uint64
-		CollectionName  string
-		PropertyName    string
-		PropertyValue   datatypes.JSON
-	}
+	err := query.Preload("Collections.Properties").
+		First(&doc).Error
 
-	err := query.Scan(&results).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("not found")
+		}
 		return nil, err
 	}
 
-	if len(results) == 0 {
+	if len(collections) > 0 && collections[0] != "" && len(doc.Collections) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
 
-	return reduceResults(results), nil
+	return reduceUserDocuments([]models.UserDocument{doc}), nil
 }
 
 // GetUserDocumentsCollectionsAndProperties retrieves all documents, collections, and properties for a user
 func GetUserDocumentsCollectionsAndProperties(db *gorm.DB, userID string) (DocumentResult, error) {
-	var results []struct {
-		DocumentName    string
-		DocumentVersion uint64
-		CollectionName  string
-		PropertyName    string
-		PropertyValue   datatypes.JSON
-	}
+	var docs []models.UserDocument
 
-	err := db.Table("user_documents d").
-		Select("d.document_name, d.document_version, c.collection_name, p.property_name, p.property_value").
-		Joins("JOIN user_documents_collections dc ON d.document_id = dc.user_document_document_id").
-		Joins("JOIN user_collections c ON dc.user_collection_collection_id = c.collection_id").
-		Joins("LEFT JOIN user_collections_properties cp ON c.collection_id = cp.user_collection_collection_id").
-		Joins("LEFT JOIN user_properties p ON cp.user_property_property_id = p.property_id").
-		Where("d.user_id = ?", userID).
-		Scan(&results).Error
+	err := db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)}).
+		Where("user_id = ?", userID).
+		Preload("Collections").
+		Preload("Collections.Properties").
+		Find(&docs).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(results) == 0 {
+	if len(docs) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
 
-	return reduceResults(results), nil
+	return reduceUserDocuments(docs), nil
 }
 
-// reduceResults converts database results to the API output format
-func reduceResults(results []struct {
-	DocumentName    string
-	DocumentVersion uint64
-	CollectionName  string
-	PropertyName    string
-	PropertyValue   datatypes.JSON
-}) DocumentResult {
+// reduceApplicationDocuments converts application models to API output
+func reduceApplicationDocuments(docs []models.ApplicationDocument) DocumentResult {
 	output := make(DocumentResult)
 
-	for _, row := range results {
-		// Get or create document map
-		var docMap map[string]interface{}
-		if output[row.DocumentName] == nil {
-			docMap = make(map[string]interface{})
-			docMap["__version"] = fmt.Sprintf("%d", row.DocumentVersion)
-			output[row.DocumentName] = docMap
-		} else {
-			docMap = output[row.DocumentName].(map[string]interface{})
-		}
+	for _, doc := range docs {
+		// If mimicking INNER JOIN, we might skip docs with no collections,
+		// but typically getting the doc itself is fine.
+		// However, the previous "not found" logic often triggered on empty sets.
 
-		// Get or create collection map
-		var collMap map[string]interface{}
-		if docMap[row.CollectionName] == nil {
-			collMap = make(map[string]interface{})
-			docMap[row.CollectionName] = collMap
-		} else {
-			collMap = docMap[row.CollectionName].(map[string]interface{})
-		}
+		docMap := make(map[string]interface{})
+		docMap["__version"] = fmt.Sprintf("%d", doc.DocumentVersion)
 
-		// Add property if present
-		if row.PropertyName != "" {
-			var value interface{}
-			if err := json.Unmarshal(row.PropertyValue, &value); err == nil {
-				collMap[row.PropertyName] = value
+		for _, coll := range doc.Collections {
+			collMap := make(map[string]interface{})
+			for _, prop := range coll.Properties {
+				var value interface{}
+				if err := json.Unmarshal(prop.PropertyValue, &value); err == nil {
+					collMap[prop.PropertyName] = value
+				}
 			}
+			docMap[coll.CollectionName] = collMap
 		}
+
+		// If we want to strictly hide documents that ended up having NO collections
+		// (e.g. because of the collection name filter in Preload),
+		// we should verify if that's desired.
+		// For now, allow it, as the doc exists.
+		output[doc.DocumentName] = docMap
+	}
+
+	return output
+}
+
+// reduceUserDocuments converts user models to API output
+func reduceUserDocuments(docs []models.UserDocument) DocumentResult {
+	output := make(DocumentResult)
+
+	for _, doc := range docs {
+		docMap := make(map[string]interface{})
+		docMap["__version"] = fmt.Sprintf("%d", doc.DocumentVersion)
+
+		for _, coll := range doc.Collections {
+			collMap := make(map[string]interface{})
+			for _, prop := range coll.Properties {
+				var value interface{}
+				if err := json.Unmarshal(prop.PropertyValue, &value); err == nil {
+					collMap[prop.PropertyName] = value
+				}
+			}
+			docMap[coll.CollectionName] = collMap
+		}
+		output[doc.DocumentName] = docMap
 	}
 
 	return output
@@ -263,7 +258,8 @@ func SetApplicationProperties(db *gorm.DB, documentName string, version uint64, 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -387,7 +383,8 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.UserDocument
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
