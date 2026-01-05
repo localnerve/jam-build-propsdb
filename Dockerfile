@@ -30,7 +30,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o healthcheck ./cmd
 
 # ------------------
 # Runtime stage
-FROM alpine:latest as runtime
+FROM alpine:latest AS runtime
 ARG RESOURCE_REAPER_SESSION_ID
 LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 
