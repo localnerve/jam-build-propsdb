@@ -35,7 +35,7 @@ services:
       - propsdb-network
     restart: unless-stopped
 
-  # Database Service
+  # Database Service - Update for DB_TYPE
   database:
     image: ${DB_IMAGE}
     container_name: propsdb-database
@@ -108,7 +108,9 @@ services:
     ports:
       - "8081:8080"
     environment:
-      - ADMINER_DEFAULT_SERVER=mariadb
+      - ADMINER_DEFAULT_SERVER=database
+    depends_on:
+      - database
     networks:
       - propsdb-network
     restart: unless-stopped
