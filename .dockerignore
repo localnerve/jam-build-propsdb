@@ -15,6 +15,7 @@ README.md
 .idea
 *.swp
 *.swo
+*.code-workspace
 
 # Test files
 *_test.go
