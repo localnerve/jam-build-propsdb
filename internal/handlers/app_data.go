@@ -43,6 +43,10 @@ func (h *AppDataHandler) GetAppProperties(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
+	if !hasContent(result) {
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
 	return c.Status(fiber.StatusOK).JSON(result)
 }
 
@@ -79,6 +83,10 @@ func (h *AppDataHandler) GetAppCollectionsAndProperties(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
+	if !hasContent(result) {
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
 	return c.Status(fiber.StatusOK).JSON(result)
 }
 
@@ -102,6 +110,10 @@ func (h *AppDataHandler) GetAppDocumentsCollectionsAndProperties(c *fiber.Ctx) e
 	}
 
 	if len(result) == 0 {
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
+	if !hasContent(result) {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 

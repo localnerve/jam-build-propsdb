@@ -2,13 +2,17 @@ package integration_test
 
 import (
 	"context"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/localnerve/propsdb/internal/config"
 	"github.com/localnerve/propsdb/internal/database"
+	"github.com/localnerve/propsdb/internal/handlers"
 	"github.com/localnerve/propsdb/internal/services"
+	"github.com/localnerve/propsdb/tests/helpers"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
@@ -95,6 +99,10 @@ func TestWithMariaDB(t *testing.T) {
 	t.Run("DeleteOperations", func(t *testing.T) {
 		testDeleteOperations(t, db)
 	})
+
+	t.Run("Handler204Behavior", func(t *testing.T) {
+		testHandler204Behavior(t, db)
+	})
 }
 
 // TestWithPostgreSQL tests the service with a real PostgreSQL container
@@ -174,6 +182,10 @@ func TestWithPostgreSQL(t *testing.T) {
 
 	t.Run("VersionControl", func(t *testing.T) {
 		testVersionControl(t, db)
+	})
+
+	t.Run("Handler204Behavior", func(t *testing.T) {
+		testHandler204Behavior(t, db)
 	})
 }
 
@@ -385,4 +397,36 @@ func TestHealthCheck(t *testing.T) {
 	if result.Status != "unhealthy" {
 		t.Errorf("Expected status to be unhealthy, got: %s", result.Status)
 	}
+}
+
+// testHandler204Behavior tests the handler's 204 No Content response with a real database
+func testHandler204Behavior(t *testing.T, db *gorm.DB) {
+	docName := "int-emptydoc"
+	colName := "int-emptycoll"
+
+	helpers.CreateTestDocument(t, db, docName, 1)
+	helpers.CreateTestEmptyCollection(t, db, docName, colName)
+
+	app := fiber.New()
+	handler := &handlers.AppDataHandler{DB: db}
+	app.Get("/api/data/app/:document/:collection", handler.GetAppProperties)
+
+	// Single empty collection -> 204
+	req := httptest.NewRequest("GET", "/api/data/app/"+docName+"/"+colName, nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed to execute request: %v", err)
+	}
+	helpers.AssertStatus(t, resp, 204)
+	helpers.AssertNoContent(t, resp)
+
+	// Multi collection (filtered) all empty -> 204
+	app.Get("/api/data/app/:document", handler.GetAppCollectionsAndProperties)
+	req = httptest.NewRequest("GET", "/api/data/app/"+docName+"?collections="+colName, nil)
+	resp, err = app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed to execute request: %v", err)
+	}
+	helpers.AssertStatus(t, resp, 204)
+	helpers.AssertNoContent(t, resp)
 }

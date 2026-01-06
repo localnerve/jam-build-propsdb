@@ -70,6 +70,10 @@ func (h *UserDataHandler) GetUserProperties(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
+	if !hasContent(result) {
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
 	return c.Status(fiber.StatusOK).JSON(result)
 }
 
@@ -112,6 +116,10 @@ func (h *UserDataHandler) GetUserCollectionsAndProperties(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
+	if !hasContent(result) {
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
 	return c.Status(fiber.StatusOK).JSON(result)
 }
 
@@ -141,6 +149,10 @@ func (h *UserDataHandler) GetUserDocumentsCollectionsAndProperties(c *fiber.Ctx)
 	}
 
 	if len(result) == 0 {
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
+	if !hasContent(result) {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 

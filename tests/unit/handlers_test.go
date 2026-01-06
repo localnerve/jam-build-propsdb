@@ -10,6 +10,7 @@ import (
 	"github.com/localnerve/propsdb/internal/handlers"
 	"github.com/localnerve/propsdb/internal/models"
 	"github.com/localnerve/propsdb/internal/services"
+	"github.com/localnerve/propsdb/tests/helpers"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -221,4 +222,58 @@ func TestNotFound(t *testing.T) {
 	if resp.StatusCode != 404 {
 		t.Errorf("Expected status 404, got %d", resp.StatusCode)
 	}
+}
+
+// TestGetAppProperties_Empty tests GET /api/data/app/:document/:collection with empty collection
+func TestGetAppProperties_Empty(t *testing.T) {
+	db := setupTestDB(t)
+
+	helpers.CreateTestDocument(t, db, "emptydoc", 1)
+	helpers.CreateTestEmptyCollection(t, db, "emptydoc", "emptycoll")
+
+	app := fiber.New()
+	handler := &handlers.AppDataHandler{DB: db}
+	app.Get("/api/data/app/:document/:collection", handler.GetAppProperties)
+
+	req := httptest.NewRequest("GET", "/api/data/app/emptydoc/emptycoll", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed to execute request: %v", err)
+	}
+
+	helpers.AssertStatus(t, resp, 204)
+	helpers.AssertNoContent(t, resp)
+}
+
+// TestGetAppCollectionsAndProperties_Empty tests multi-collection GET with only empty collections
+func TestGetAppCollectionsAndProperties_Empty(t *testing.T) {
+	db := setupTestDB(t)
+
+	helpers.CreateTestDocument(t, db, "multidoc", 1)
+	helpers.CreateTestEmptyCollection(t, db, "multidoc", "coll1")
+	helpers.CreateTestEmptyCollection(t, db, "multidoc", "coll2")
+
+	app := fiber.New()
+	handler := &handlers.AppDataHandler{DB: db}
+	app.Get("/api/data/app/:document", handler.GetAppCollectionsAndProperties)
+
+	// Filtered multi-collection
+	req := httptest.NewRequest("GET", "/api/data/app/multidoc?collections=coll1,coll2", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed to execute request: %v", err)
+	}
+
+	helpers.AssertStatus(t, resp, 204)
+	helpers.AssertNoContent(t, resp)
+
+	// All collections (implicitly empty)
+	req = httptest.NewRequest("GET", "/api/data/app/multidoc", nil)
+	resp, err = app.Test(req)
+	if err != nil {
+		t.Fatalf("Failed to execute request: %v", err)
+	}
+
+	helpers.AssertStatus(t, resp, 204)
+	helpers.AssertNoContent(t, resp)
 }

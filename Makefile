@@ -20,9 +20,11 @@ TEST_ENV=DOCKER_MARIADB_IMAGE=$(DOCKER_MARIADB_IMAGE) DOCKER_POSTGRES_IMAGE=$(DO
 
 # Go parameters
 GOCMD=go
+DLVCMD=dlv
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(TEST_ENV) $(GOCMD) test
+DLVTEST=$(TEST_ENV) $(DLVCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=$(GOCMD) fmt
@@ -72,6 +74,10 @@ test-integration: ## Run integration tests (requires Docker)
 test-e2e: ## Run end-to-end tests with full stack (requires Docker)
 	@echo "Running E2E tests..."
 	$(GOTEST) -v ./tests/e2e/... -timeout 300s
+
+test-e2e-debug: ## Start debugger for E2E tests, attach with 'dlv connect :2345' or comparable IDE launch configuration
+	@echo "Running E2E tests in debug mode..."
+	$(DLVTEST) ./tests/e2e/... --headless --listen=:2345 --api-version=2 --log
 
 test-e2e-rebuild: ## Run E2E tests with forced rebuild of propsdb-test image
 	@echo "Forcing rebuild of propsdb-test images..."

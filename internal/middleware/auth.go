@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/localnerve/propsdb/internal/config"
 	"github.com/localnerve/propsdb/internal/services"
 	"github.com/localnerve/propsdb/internal/types"
 )
@@ -24,6 +25,25 @@ func AuthUser() fiber.Handler {
 
 // authorize performs the authorization check
 func authorize(c *fiber.Ctx, roles []string, errorType string) error {
+	// Lazy initialization of Authorizer client
+	if !services.IsAuthorizerInitialized() {
+		cfg, err := config.Load()
+		if err != nil {
+			return &types.CustomError{
+				Code:    fiber.StatusInternalServerError,
+				Message: fmt.Sprintf("Failed to load config for authorizer: %v", err),
+				Type:    errorType,
+			}
+		}
+		if err := services.InitAuthorizer(cfg, c.Protocol(), c.Hostname()); err != nil {
+			return &types.CustomError{
+				Code:    fiber.StatusInternalServerError,
+				Message: fmt.Sprintf("Failed to initialize authorizer: %v", err),
+				Type:    errorType,
+			}
+		}
+	}
+
 	// Get session cookie
 	session := c.Cookies("cookie_session")
 	if session == "" {
