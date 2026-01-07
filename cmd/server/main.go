@@ -52,20 +52,20 @@ func main() {
 	// Connect to database (app pool)
 	appDB, err := database.Connect(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to app database: %v", err)
+		log.Fatalf("Failed to connect to app database at startup: %v", err)
 	}
 	defer database.Close(appDB)
 
 	// Connect to database (user pool)
 	userDB, err := database.ConnectUser(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to user database: %v", err)
+		log.Fatalf("Failed to connect to user database at startup: %v", err)
 	}
 	defer database.Close(userDB)
 
 	// Run auto-migrations
 	if err := database.AutoMigrate(appDB); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		log.Fatalf("Failed to run migrations at startup: %v", err)
 	}
 
 	// Create Fiber app

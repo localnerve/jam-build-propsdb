@@ -43,47 +43,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_properties TO 'jbadmin'@'
 GRANT SELECT ON jam_build.application_properties TO 'jbuser'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_properties TO 'jbuser'@'%';
 
--- Grant execute permission on GetPropertiesForApplication/UserDocumentAndCollection to jbadmin, jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesForApplicationDocumentAndCollection TO 'jbadmin'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesForApplicationDocumentAndCollection TO 'jbuser'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesForUserDocumentAndCollection TO 'jbadmin'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesForUserDocumentAndCollection TO 'jbuser'@'%';
-
--- Grant execute permission on GetPropertiesAndCollectionsForApplication/UserDocument to jbadmin, jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsForApplicationDocument TO 'jbadmin'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsForApplicationDocument TO 'jbuser'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsForUserDocument TO 'jbadmin'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsForUserDocument TO 'jbuser'@'%';
-
--- Grant execute permission on GetPropertiesAndCollectionsAndDocumentsForApplication/ForUser to jbadmin, jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsAndDocumentsForApplication TO 'jbadmin'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsAndDocumentsForApplication TO 'jbuser'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsAndDocumentsForUser TO 'jbadmin'@'%';
-GRANT EXECUTE ON PROCEDURE jam_build.GetPropertiesAndCollectionsAndDocumentsForUser TO 'jbuser'@'%';
-
--- Grant execute permission on InsertPropertiesForApplicationDocumentCollection to jbadmin
-GRANT EXECUTE ON PROCEDURE jam_build.UpsertApplicationDocumentWithCollectionsAndProperties TO 'jbadmin'@'%';
-
--- Grant execute permission on InsertPropertiesForUserDocumentCollection to jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.UpsertUserDocumentWithCollectionsAndProperties TO 'jbuser'@'%';
-
--- Grant execute permission on DeleteApplicationDocument to jbadmin
-GRANT EXECUTE ON PROCEDURE jam_build.DeleteApplicationDocument TO 'jbadmin'@'%';
-
--- Grant execute permission on DeleteApplicationCollection to jbadmin
-GRANT EXECUTE ON PROCEDURE jam_build.DeleteApplicationCollection TO 'jbadmin'@'%';
-
--- Grant execute permission on DeleteApplicationProperties to jbadmin
-GRANT EXECUTE ON PROCEDURE jam_build.DeleteApplicationProperties TO 'jbadmin'@'%';
-
--- Grant execute permission on DeleteUserDocument to jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.DeleteUserDocument TO 'jbuser'@'%';
-
--- Grant execute permission on DeleteUserCollection to jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.DeleteUserCollection TO 'jbuser'@'%';
-
--- Grant execute permission on DeleteUserProperties to jbuser
-GRANT EXECUTE ON PROCEDURE jam_build.DeleteUserProperties TO 'jbuser'@'%';
-
 -- Apply the changes immediately
 FLUSH PRIVILEGES;

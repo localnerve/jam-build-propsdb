@@ -1,6 +1,7 @@
 # Binaries
 /propsdb
 /healthcheck
+/testcontainers
 *.exe
 *.dll
 *.so
@@ -38,10 +39,12 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Test coverage
+# Test coverage and output
+coverage/
 coverage.txt
 coverage.html
 *.coverprofile
+test-results/
 
 # Temporary files
 tmp/

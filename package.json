@@ -1,0 +1,28 @@
+{
+  "name": "propsdb",
+  "version": "1.0.0",
+  "description": "The e2e test harness for propsdb, the multi-user, concurrent, RBAC property api service in go fiber",
+  "scripts": {
+    "test": "echo See the Makefile for tests and support commands: make test-e2e-js"
+  },
+  "imports": {
+    "#test/*": "./tests/e2e-js/*"
+  },
+  "homepage": "https://github.com/localnerve/propsdb#readme",
+  "bugs": {
+    "url": "https://github.com/localnerve/propsdb/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/localnerve/propsdb.git"
+  },
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "author": "Alex Grant <alex@localnerve.com> (https://localnerve.com)",
+  "type": "module",
+  "devDependencies": {
+    "@localnerve/authorizer-js": "^1.0.5",
+    "@localnerve/debug": "^1.0.12",
+    "@playwright/test": "^1.57.0"
+  }
+}

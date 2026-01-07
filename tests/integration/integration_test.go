@@ -29,7 +29,7 @@ func TestWithMariaDB(t *testing.T) {
 	// Start MariaDB container
 	mariadbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        os.Getenv("DOCKER_MARIADB_IMAGE"),
+			Image:        os.Getenv("DB_IMAGE"),
 			ExposedPorts: []string{"3306/tcp"},
 			Env: map[string]string{
 				"MYSQL_ROOT_PASSWORD": "rootpass",
@@ -116,7 +116,7 @@ func TestWithPostgreSQL(t *testing.T) {
 	// Start PostgreSQL container
 	postgresContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        os.Getenv("DOCKER_POSTGRES_IMAGE"),
+			Image:        os.Getenv("POSTGRES_IMAGE"),
 			ExposedPorts: []string{"5432/tcp"},
 			Env: map[string]string{
 				"POSTGRES_PASSWORD": "testpass",
@@ -331,7 +331,7 @@ func TestHealthCheck(t *testing.T) {
 	// Start MariaDB container
 	mariadbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        os.Getenv("DOCKER_MARIADB_IMAGE"),
+			Image:        os.Getenv("DB_IMAGE"),
 			ExposedPorts: []string{"3306/tcp"},
 			Env: map[string]string{
 				"MYSQL_ROOT_PASSWORD": "rootpass",
