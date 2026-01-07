@@ -98,7 +98,6 @@ test-e2e-js: build-testcontainers ## Run end-to-end tests with full stack (requi
 		echo "\nReady! Running E2E tests..."; \
 		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) > .env.test; \
 		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) >> .env.test; \
-		## $(GODOTENVCMD) -o -f $(ENV_FILE),.env.test env; \
 		$(GODOTENVCMD) -f .env.test,$(ENV_FILE) $(NPXCMD) playwright test --project api-chromium; \
 		EXIT_CODE=$$?; \
 		\
