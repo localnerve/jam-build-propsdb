@@ -17,8 +17,9 @@ ENV_FILE=.env.dev
 # Commands
 GOCMD=go
 DLVCMD=dlv
-NPX=npx
-GODOTENV=godotenv -f $(ENV_FILE)
+NPXCMD=npx
+GODOTENVCMD=godotenv
+GODOTENV=$(GODOTENVCMD) -f $(ENV_FILE)
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GODOTENV) $(GOCMD) test
@@ -94,8 +95,11 @@ test-e2e-js: build-testcontainers ## Run end-to-end tests with full stack (requi
 			sleep 1; count=`expr $$count + 1`; \
 		done; \
 		\
-		echo "Ready! Running E2E tests..."; \
-		$(GODOTENV) $(NPX) playwright test --project fixtures; \
+		echo "\nReady! Running E2E tests..."; \
+		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) > .env.test; \
+		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) >> .env.test; \
+		## $(GODOTENVCMD) -o -f $(ENV_FILE),.env.test env; \
+		$(GODOTENVCMD) -f .env.test,$(ENV_FILE) $(NPXCMD) playwright test --project api-chromium; \
 		EXIT_CODE=$$?; \
 		\
 		echo "Cleaning up..."; \

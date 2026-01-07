@@ -101,7 +101,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	tcpDbPort, err := nat.NewPort("tcp", os.Getenv("DB_PORT"))
 	if err != nil {
 		testContainers.Terminate(t)
-		exitWithError(t, err, "Failed to create port")
+		exitWithError(t, err, "Failed to create DB port")
 	}
 	dbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
@@ -194,11 +194,16 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 	// Start Authorizer
 	authzNetworkName := "authorizer"
+	tcpAuthzPort, err := nat.NewPort("tcp", os.Getenv("AUTHZ_PORT"))
+	if err != nil {
+		testContainers.Terminate(t)
+		exitWithError(t, err, "Failed to create Authorizer port")
+	}
 	authzDbConnection := fmt.Sprintf("root:%s@tcp(%s:%s)/%s", os.Getenv("DB_ROOT_PASSWORD"), dbNetworkName, os.Getenv("DB_PORT"), os.Getenv("AUTHZ_DATABASE"))
 	authorizerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        os.Getenv("AUTHZ_IMAGE"),
-			ExposedPorts: []string{os.Getenv("AUTHZ_PORT") + "/tcp"},
+			ExposedPorts: []string{string(tcpAuthzPort)},
 			Env: map[string]string{
 				"ENV":           "production",
 				"CLIENT_ID":     os.Getenv("AUTHZ_CLIENT_ID"),
@@ -224,6 +229,11 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	}
 	testContainers.AuthorizerContainer = authorizerContainer
 
+	// Log the localhost and mapped ports for Authorizer
+	authzHost, _ := authorizerContainer.Host(ctx)
+	authzPort, _ := authorizerContainer.MappedPort(ctx, tcpAuthzPort)
+	logMessage(t, "AUTHZ_URL=%s:%s", authzHost, authzPort.Port())
+
 	// Check if propsdb-test image exists
 	imageName := "propsdb-test:latest"
 	imageExists, err := imageExists(ctx, imageName)
@@ -236,10 +246,10 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	var propsdbContainer testcontainers.Container
 
 	propsdbPortNumber := os.Getenv("PORT")
-	propsdbPort, err := nat.NewPort("tcp", propsdbPortNumber)
+	tcpPropsdbPort, err := nat.NewPort("tcp", propsdbPortNumber)
 	if err != nil {
 		testContainers.Terminate(t)
-		exitWithError(t, err, "Failed to create propsdbport")
+		exitWithError(t, err, "Failed to create PropsDB port")
 	}
 
 	if !imageExists {
@@ -288,7 +298,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 					},
 					PrintBuildLog: true,
 				},
-				ExposedPorts: []string{string(propsdbPort)},
+				ExposedPorts: []string{string(tcpPropsdbPort)},
 				Env: map[string]string{
 					"DB_TYPE":                 os.Getenv("DB_TYPE"),
 					"DB_HOST":                 dbNetworkName,
@@ -304,7 +314,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 					"AUTHZ_CLIENT_ID":         os.Getenv("AUTHZ_CLIENT_ID"),
 					"PORT":                    propsdbPortNumber,
 				},
-				WaitingFor: wait.ForHTTP("/metrics").WithPort(propsdbPort).WithStartupTimeout(120 * time.Second),
+				WaitingFor: wait.ForHTTP("/metrics").WithPort(tcpPropsdbPort).WithStartupTimeout(120 * time.Second),
 				Networks:   []string{networkName},
 			},
 			Started: true,
@@ -319,7 +329,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		propsdbContainer, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
 				Image:        imageName,
-				ExposedPorts: []string{string(propsdbPort)},
+				ExposedPorts: []string{string(tcpPropsdbPort)},
 				Env: map[string]string{
 					"DB_TYPE":                 dbType,
 					"DB_HOST":                 dbNetworkName,
@@ -335,7 +345,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 					"AUTHZ_CLIENT_ID":         os.Getenv("AUTHZ_CLIENT_ID"),
 					"PORT":                    propsdbPortNumber,
 				},
-				WaitingFor: wait.ForHTTP("/metrics").WithPort(propsdbPort).WithStartupTimeout(120 * time.Second),
+				WaitingFor: wait.ForHTTP("/metrics").WithPort(tcpPropsdbPort).WithStartupTimeout(120 * time.Second),
 				Networks:   []string{networkName},
 			},
 			Started: true,
@@ -347,8 +357,12 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		testContainers.PropsDBContainer = propsdbContainer
 	}
 
-	logMessage(t, "PropsDB testcontainer started successfully")
+	// Log the localhost and mapped ports for PropsDB
+	propsdbHost, _ := propsdbContainer.Host(ctx)
+	propsdbPort, _ := propsdbContainer.MappedPort(ctx, tcpPropsdbPort)
+	logMessage(t, "BASE_URL=%s:%s", propsdbHost, propsdbPort.Port())
 
+	logMessage(t, "PropsDB testcontainer started successfully")
 	return testContainers, nil
 }
 
