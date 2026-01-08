@@ -1,14 +1,24 @@
 # Build arguments
 ARG RESOURCE_REAPER_SESSION_ID="00000000-0000-0000-0000-000000000000"
+ARG DEBUG=false
 
 # ------------------
 # Build stage
 FROM golang:1.25-alpine AS builder
 ARG RESOURCE_REAPER_SESSION_ID
 LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
+ARG DEBUG
 
 # Install build dependencies
 RUN apk add --no-cache git
+
+# Install conditional debug dependencies
+RUN if [ "$DEBUG" = "true" ]; then \
+  go install github.com/go-delve/delve/cmd/dlv@latest; \
+else \
+  mkdir -p /go/bin; \
+  touch /go/bin/dlv; \
+fi
 
 # Set working directory
 WORKDIR /app
@@ -22,8 +32,12 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the server application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o propsdb ./cmd/server
+# Conditionally build with debug flags
+RUN if [ "$DEBUG" = "true" ]; then \
+  CGO_ENABLED=0 GOOS=linux go build -gcflags="all=-N -l" -o propsdb ./cmd/server; \
+else \
+  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o propsdb ./cmd/server; \
+fi
 
 # Build the healthcheck application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o healthcheck ./cmd/healthcheck
@@ -46,6 +60,8 @@ WORKDIR /app
 # Copy binaries from builder
 COPY --from=builder /app/propsdb .
 COPY --from=builder /app/healthcheck .
+# Copy dlv if it was built
+COPY --from=builder /go/bin/dlv* /usr/local/bin/
 
 # Change ownership
 RUN chown -R appuser:appuser /app

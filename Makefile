@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-all check clean coverage-report deps dev install install-tools test test-unit test-integration test-e2e test-e2e-js test-e2e-debug test-e2e-rebuild test-cache-cleantest-all test-coverage run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet
+.PHONY: help build build-healthcheck build-testcontainers build-all check clean coverage-report deps dev install install-tools test test-unit test-integration test-e2e test-e2e-js test-e2e-debug test-e2e-rebuild test-cache-clean test-all test-coverage run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet
 
 # Variables
 BINARY_NAME=propsdb
@@ -102,11 +102,10 @@ test-e2e-js: build-testcontainers ## Run end-to-end tests with full stack (requi
 		EXIT_CODE=$$?; \
 		\
 		echo "Cleaning up..."; \
-		kill $$TCPID 2>/dev/null || pkill -f testcontainers || true; \
+		kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
 		\
 		exit $$EXIT_CODE; \
 	}
-
 
 test-e2e-debug: ## Start debugger for E2E tests, attach with 'dlv connect :2345' or comparable IDE launch configuration
 	@echo "Running E2E tests in debug mode..."
