@@ -107,9 +107,17 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	// Initialize the database(s)
 	dbHost, _ := dbContainer.Host(ctx)
 	dbPort, _ := dbContainer.MappedPort(ctx, tcpDbPort)
-	if err := performDBInit(t, testContainers, dbHost, dbPort); err != nil {
-		testContainers.Terminate(t)
-		exitWithError(t, err, "Failed to initialize databases")
+	switch dbType {
+	case "postgres":
+		if err := performPostgresDBInit(t, testContainers, dbHost, dbPort); err != nil {
+			testContainers.Terminate(t)
+			exitWithError(t, err, "Failed to initialize databases")
+		}
+	case "mysql", "mariadb":
+		if err := performMySqlDBInit(t, testContainers, dbHost, dbPort); err != nil {
+			testContainers.Terminate(t)
+			exitWithError(t, err, "Failed to initialize databases")
+		}
 	}
 
 	// Create and start the Authorizer container
@@ -325,7 +333,7 @@ func getDBInitEnvMap(dbType string) map[string]string {
 	return nil
 }
 
-func performDBInit(t *testing.T, testContainers *TestContainers, dbHost string, dbPort nat.Port) error {
+func performMySqlDBInit(t *testing.T, testContainers *TestContainers, dbHost string, dbPort nat.Port) error {
 	db, err := sql.Open("mysql", fmt.Sprintf("root:%s@tcp(%s:%s)/", os.Getenv("DB_ROOT_PASSWORD"), dbHost, dbPort.Port()))
 	if err != nil {
 		testContainers.Terminate(t)
@@ -393,6 +401,10 @@ func performDBInit(t *testing.T, testContainers *TestContainers, dbHost string, 
 	}
 
 	return nil
+}
+
+func performPostgresDBInit(_ *testing.T, _ *TestContainers, _ string, _ nat.Port) error {
+	return fmt.Errorf("Postgres not fully supported yet")
 }
 
 func executeSQL(db *sql.DB, sql string) error {
