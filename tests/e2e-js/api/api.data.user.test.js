@@ -28,7 +28,7 @@ import {
 } from './api.js';
 import { deleteHomeDocument } from './utils.js';
 
-test.describe.skip('/api/data/user', () => {
+test.describe('/api/data/user', () => {
   let baseUrl;
   const version = {
     user: '0',
@@ -368,10 +368,21 @@ test.describe.skip('/api/data/user', () => {
     });
   });
 
-  test('bad post with malformed data', async () => {
+  test('bad post with malformed data', async ({ userRequest }) => {
+    const response = await userRequest.post(`${baseUrl}/home`, {
+      data: '{ bad: data: is: bad }',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(response.ok()).not.toBeTruthy();
+    expect(response.status()).toEqual(400);
+  });
+
+  test('public bad post with malformed data expects 403', async () => {
     await genericRequest(`${baseUrl}/home`, 'POST', '{ bad: data: is: bad }', fetchResponse => {
       expect(fetchResponse.ok).not.toBeTruthy();
-      expect(fetchResponse.status).toEqual(400);
+      expect(fetchResponse.status).toEqual(403);
     });
   });
 
@@ -413,7 +424,7 @@ test.describe.skip('/api/data/user', () => {
     });
   });
 
-  test.skip('delete a single property, user', async ({ userRequest }) => {
+  test('delete a single property, user', async ({ userRequest }) => {
     await getData(userRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toEqual(expect.objectContaining({
         home: {
@@ -455,7 +466,7 @@ test.describe.skip('/api/data/user', () => {
     });
   });
 
-  test.skip('delete a single property, admin', async ({ adminRequest }) => {
+  test('delete a single property, admin', async ({ adminRequest }) => {
     await getData(adminRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toEqual(expect.objectContaining({
         home: {
@@ -496,7 +507,7 @@ test.describe.skip('/api/data/user', () => {
     });
   });
 
-  test.skip('empty collections that exist should return 204, user', async ({ userRequest }) => {
+  test('empty collections that exist should return 204, user', async ({ userRequest }) => {
     version.user = await postData(userRequest, `${baseUrl}/home`, {
       version: version.user,
       collections: [{
@@ -531,7 +542,7 @@ test.describe.skip('/api/data/user', () => {
     await getData(userRequest, `${baseUrl}/home/girls`, 204);
   });
 
-  test.skip('empty collections that exist should return 204, admin', async ({ adminRequest }) => {
+  test('empty collections that exist should return 204, admin', async ({ adminRequest }) => {
     version.admin = await postData(adminRequest, `${baseUrl}/home`, {
       version: version.admin,
       collections: [{
@@ -610,7 +621,7 @@ test.describe.skip('/api/data/user', () => {
     });
   });
 
-  test.skip('delete a collection, user', async ({ userRequest }) => {
+  test('delete a collection, user', async ({ userRequest }) => {
     await getData(userRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toEqual(expect.objectContaining({
         home: {
@@ -640,7 +651,7 @@ test.describe.skip('/api/data/user', () => {
     }, 404);
   });
 
-  test.skip('delete a collection, admin', async ({ adminRequest }) => {
+  test('delete a collection, admin', async ({ adminRequest }) => {
     await getData(adminRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toEqual(expect.objectContaining({
         home: {

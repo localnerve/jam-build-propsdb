@@ -70,7 +70,7 @@ test.describe('/api/data/app', () => {
     await getData(adminRequest, `${baseUrl}/nothingbetterbehere`, 404);
   });
 
-  test.skip('mutation access to app denied to user role', async ({ userRequest }) => {
+  test('mutation access to app denied to user role', async ({ userRequest }) => {
     await postData(userRequest, `${baseUrl}/home`, {
       version,
       collections: [{
@@ -283,10 +283,21 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test('bad post with malformed data', async () => {
+  test('bad post with malformed data', async ({ adminRequest }) => {
+    const response = await adminRequest.post(`${baseUrl}/home`, {
+      data: '{ bad: data: is: bad }',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(response.ok()).not.toBeTruthy();
+    expect(response.status()).toEqual(400);
+  });
+
+  test('public bad post with malformed data expects 403', async () => {
     await genericRequest(`${baseUrl}/home`, 'POST', '{ bad: data: is: bad }', fetchResponse => {
       expect(fetchResponse.ok).not.toBeTruthy();
-      expect(fetchResponse.status).toEqual(400);
+      expect(fetchResponse.status).toEqual(403);
     });
   });
 
@@ -311,7 +322,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('delete a non-existent property without incident or effects', async ({ adminRequest }) => {
+  test('delete a non-existent property without incident or effects', async ({ adminRequest }) => {
     await getData(adminRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toStrictEqual({
         home: {
@@ -348,7 +359,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('delete a single property', async ({ adminRequest }) => {
+  test('delete a single property', async ({ adminRequest }) => {
     await getData(adminRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toEqual({
         home: {
@@ -389,7 +400,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('empty collections that exist should return 204 with collection query', async ({ adminRequest }) => {
+  test('empty collections that exist should return 204 with collection query', async ({ adminRequest }) => {
     version = await postData(adminRequest, `${baseUrl}/home`, {
       version,
       collections: [{
@@ -468,7 +479,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('post empty collections, no property input', async ({ adminRequest }) => {
+  test('post empty collections, no property input', async ({ adminRequest }) => {
     version = await postData(adminRequest, `${baseUrl}/home`, {
       version,
       collections: [{
@@ -485,7 +496,7 @@ test.describe('/api/data/app', () => {
     await getData(adminRequest, `${baseUrl}/home/empty`, 404);
   });
 
-  test.skip('update empty collections', async ({ adminRequest }) => {
+  test('update empty collections', async ({ adminRequest }) => {
     version = await postData(adminRequest, `${baseUrl}/home`, {
       version,
       collections: [{
@@ -522,7 +533,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('delete multiple collections, no property input', async ({ adminRequest }) => {
+  test('delete multiple collections, no property input', async ({ adminRequest }) => {
     version = await postData(adminRequest, `${baseUrl}/home`, {
       version,
       collections: [{
@@ -574,7 +585,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('delete one collection', async ({ adminRequest }) => {
+  test('delete one collection', async ({ adminRequest }) => {
     await getData(adminRequest, `${baseUrl}/home/friends`, json => {
       expect(json).toEqual({
         home: {
@@ -649,7 +660,7 @@ test.describe('/api/data/app', () => {
     });
   });
 
-  test.skip('delete conflict should cause version error', async ({ adminRequest: admin1, adminRequest: admin2 }) => {
+  test('delete conflict should cause version error', async ({ adminRequest: admin1, adminRequest: admin2 }) => {
     let payload1, payload2;
 
     await getData(admin1, baseUrl, json => {
