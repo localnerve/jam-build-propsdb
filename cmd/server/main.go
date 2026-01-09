@@ -102,22 +102,29 @@ func main() {
 	userHandler := &handlers.UserDataHandler{DB: userDB}
 
 	// Application data routes (public GET, admin POST/DELETE)
-	data.Get("/app/:document/:collection", appHandler.GetAppProperties)
-	data.Get("/app/:document", appHandler.GetAppCollectionsAndProperties)
-	data.Get("/app", appHandler.GetAppDocumentsCollectionsAndProperties)
-
-	// Admin-only application routes
-	data.Post("/app/:document", middleware.AuthAdmin(), appHandler.SetAppProperties)
-	data.Delete("/app/:document/:collection", middleware.AuthAdmin(), appHandler.DeleteAppCollection)
-	data.Delete("/app/:document", middleware.AuthAdmin(), appHandler.DeleteAppProperties)
+	appRoutes := data.Group("/app")
+	// Middleware for app mutations
+	appRoutes.Use(func(c *fiber.Ctx) error {
+		if c.Method() == fiber.MethodGet {
+			return c.Next()
+		}
+		return middleware.AuthAdmin()(c)
+	})
+	appRoutes.Get("/:document/:collection", appHandler.GetAppProperties)
+	appRoutes.Get("/:document", appHandler.GetAppCollectionsAndProperties)
+	appRoutes.Get("/", appHandler.GetAppDocumentsCollectionsAndProperties)
+	appRoutes.Post("/:document", appHandler.SetAppProperties)
+	appRoutes.Delete("/:document/:collection", appHandler.DeleteAppCollection)
+	appRoutes.Delete("/:document", appHandler.DeleteAppProperties)
 
 	// User data routes (all require user authentication)
-	data.Get("/user/:document/:collection", middleware.AuthUser(), userHandler.GetUserProperties)
-	data.Get("/user/:document", middleware.AuthUser(), userHandler.GetUserCollectionsAndProperties)
-	data.Get("/user", middleware.AuthUser(), userHandler.GetUserDocumentsCollectionsAndProperties)
-	data.Post("/user/:document", middleware.AuthUser(), userHandler.SetUserProperties)
-	data.Delete("/user/:document/:collection", middleware.AuthUser(), userHandler.DeleteUserCollection)
-	data.Delete("/user/:document", middleware.AuthUser(), userHandler.DeleteUserProperties)
+	userRoutes := data.Group("/user", middleware.AuthUser())
+	userRoutes.Get("/:document/:collection", userHandler.GetUserProperties)
+	userRoutes.Get("/:document", userHandler.GetUserCollectionsAndProperties)
+	userRoutes.Get("/", userHandler.GetUserDocumentsCollectionsAndProperties)
+	userRoutes.Post("/:document", userHandler.SetUserProperties)
+	userRoutes.Delete("/:document/:collection", userHandler.DeleteUserCollection)
+	userRoutes.Delete("/:document", userHandler.DeleteUserProperties)
 
 	// 404 handler
 	app.Use(func(c *fiber.Ctx) error {
