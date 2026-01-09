@@ -43,5 +43,22 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_properties TO 'jbadmin'@'
 GRANT SELECT ON jam_build.application_properties TO 'jbuser'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_properties TO 'jbuser'@'%';
 
+-- Grant SELECT, INSERT, UPDATE, DELETE permissions on junction tables to jbadmin
+-- Grant SELECT permissions on application junction tables to jbuser
+-- Grant SELECT, INSERT, UPDATE, DELETE permissions on user junction tables to jbuser
+GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.application_documents_collections TO 'jbadmin'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.application_collections_properties TO 'jbadmin'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_documents_collections TO 'jbadmin'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_collections_properties TO 'jbadmin'@'%';
+GRANT SELECT ON jam_build.application_documents_collections TO 'jbuser'@'%';
+GRANT SELECT ON jam_build.application_collections_properties TO 'jbuser'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_documents_collections TO 'jbuser'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON jam_build.user_collections_properties TO 'jbuser'@'%';
+
+-- Grant SELECT permissions on authorizer_users table to both jbadmin and jbuser
+-- This is required for foreign key validation on user_documents
+GRANT SELECT ON authorizer.authorizer_users TO 'jbadmin'@'%';
+GRANT SELECT ON authorizer.authorizer_users TO 'jbuser'@'%';
+
 -- Apply the changes immediately
 FLUSH PRIVILEGES;
