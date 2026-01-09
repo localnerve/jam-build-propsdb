@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all check clean coverage-report deps dev install install-tools test test-unit test-integration test-e2e test-e2e-js test-e2e-js-debug test-e2e-debug test-e2e-rebuild test-cache-clean test-all test-coverage run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet check install-tools install dev
 
 # Variables
 BINARY_NAME=propsdb
@@ -49,15 +49,9 @@ build-testcontainers: ## Build the testcontainers binary
 	@echo "Build complete: $(TESTCONTAINERS_BINARY)"
 
 build-testcontainers-debug: ## Prepare for a new propsdb-test image build
-	@echo "Building $(TESTCONTAINERS_BINARY) with debug propsdb container test image..."
+	@echo "Rebuilding $(TESTCONTAINERS_BINARY) for debug..."
 	docker rmi propsdb-test:latest || true
-	@rm -f .env.debug
-	@cp $(ENV_FILE) .env.debug
-	@printf '\n' >> .env.debug
-	@echo "DEBUG_CONTAINER=true" >> .env.debug
-	@echo "TESTCONTAINERS_BUILD_CONTEXT=." >> .env.debug
-	$(GOBUILD) -o $(TESTCONTAINERS_BINARY) ./cmd/testcontainers
-	@echo "Build complete: $(TESTCONTAINERS_BINARY)"
+	$(MAKE) build-testcontainers
 
 build-all: build build-healthcheck build-testcontainers ## Build all binaries
 	@echo "All binaries built successfully"
@@ -86,74 +80,66 @@ test-integration: ## Run integration tests (requires Docker)
 	@echo "Running integration tests..."
 	$(GOTEST) -v ./tests/integration/...
 
-test-e2e: ## Run end-to-end tests with full stack (requires Docker)
+test-e2e: ## Run end-to-end go tests with full stack (requires Docker)
 	@echo "Running E2E tests..."
 	$(GOTEST) -v ./tests/e2e/... -timeout 300s
 
-test-e2e-debug: ## Start debugger for E2E tests, attach with 'dlv connect :2345' or comparable IDE launch configuration
+test-e2e-debug: ## Start debugger for E2E go tests, attach with 'dlv connect :2345' or comparable IDE launch configuration
 	@echo "Running E2E tests in debug mode..."
 	$(DLVTEST) ./tests/e2e/... --headless --listen=:2345 --api-version=2 --log
 
-test-e2e-rebuild: ## Run E2E tests with forced rebuild of propsdb-test image
+test-e2e-rebuild: ## Run E2E go tests with forced rebuild of propsdb-test image
 	@echo "Forcing rebuild of propsdb-test images..."
 	docker rmi propsdb-test:latest || true
-	@echo "Running E2E tests..."
-	$(GOTEST) -v ./tests/e2e/... -timeout 300s
+	@$(MAKE) test-e2e
 
-test-e2e-js: build-testcontainers ## Run end-to-end tests with full stack (requires Docker) FROM Playwright browsers
+test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
 	@{ \
-		echo "Starting testcontainers..." ; \
-		./$(TESTCONTAINERS_BINARY) -f $(ENV_FILE) > testcontainers.log 2>&1 & \
+		DEBUG_VAL=$(DEBUG); \
+		[ -z "$$DEBUG_VAL" ] && DEBUG_VAL=0; \
+		if [ "$$DEBUG_VAL" -gt 0 ]; then \
+			echo "Setting up .env.debug..." ; \
+			rm -f .env.debug; \
+			cp $(ENV_FILE) .env.debug; \
+			printf '\n' >> .env.debug; \
+			echo "DEBUG_CONTAINER=true" >> .env.debug; \
+			echo "TESTCONTAINERS_BUILD_CONTEXT=." >> .env.debug; \
+			ENV_FILE_TO_USE=.env.debug; \
+			TIMEOUT=120; \
+		else \
+			ENV_FILE_TO_USE=$(ENV_FILE); \
+			TIMEOUT=30; \
+		fi; \
+		if [ "$$DEBUG_VAL" -eq 2 ]; then \
+			$(MAKE) build-testcontainers-debug; \
+		else \
+			$(MAKE) build-testcontainers; \
+		fi; \
+		echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
+		./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > testcontainers.log 2>&1 & \
 		TCPID=$$!; \
-		\
-		# Portable polling loop \
 		count=0; \
 		while ! grep -q "PropsDB testcontainer started" testcontainers.log; do \
-			if [ $$count -ge 30 ]; then \
+			if [ $$count -ge $$TIMEOUT ]; then \
 				echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
 			fi; \
-			printf '%s' "."; \
-			sleep 1; count=`expr $$count + 1`; \
-		done; \
-		\
-		echo "\nReady! Running E2E tests..."; \
-		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) > .env.test; \
-		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) >> .env.test; \
-		$(GODOTENVCMD) -f .env.test,$(ENV_FILE) $(NPXCMD) playwright test --project api-chromium; \
-		EXIT_CODE=$$?; \
-		\
-		echo "Cleaning up..."; \
-		kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
-		\
-		exit $$EXIT_CODE; \
-	}
-
-test-e2e-js-debug: build-testcontainers-debug ## Run end-to-end tests with full stack (requires Docker) FROM Playwright browsers IN DEBUG MODE
-	@{ \
-		echo "Rebuilding propsdb-test image as debug container and starting testcontainers..." ; \
-		./$(TESTCONTAINERS_BINARY) -f .env.debug > testcontainers.log 2>&1 & \
-		TCPID=$$!; \
-		\
-		# Portable polling loop \
-		count=0; \
-		while ! grep -q "PropsDB testcontainer started" testcontainers.log; do \
-			if [ $$count -ge 120 ]; then \
-				echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
-			fi; \
-			if [ "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
+			if [ "$$DEBUG_VAL" -gt 0 -a "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
 				echo ""; \
 			fi; \
 			printf '%s' "."; \
 			sleep 1; count=`expr $$count + 1`; \
 		done; \
-		\
-		echo "\nContainers ready!"; \
-		echo "Attach debugger to :2345 and press enter to start E2E tests..."; \
-		read -r dummy; \
-		echo "Starting E2E tests..."; \
+		if [ "$$DEBUG_VAL" -gt 0 ]; then \
+			echo "\nContainers ready!"; \
+			echo "Attach debugger to :2345 and press enter to start E2E tests..."; \
+			read -r dummy; \
+			echo "Starting E2E tests..."; \
+		else \
+			echo "\nReady! Running E2E tests..."; \
+		fi; \
 		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) > .env.test; \
 		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) >> .env.test; \
-		$(GODOTENVCMD) -f .env.test,.env.debug $(NPXCMD) playwright test --project api-chromium; \
+		$(GODOTENVCMD) -f .env.test,$$ENV_FILE_TO_USE $(NPXCMD) playwright test --project api-chromium; \
 		EXIT_CODE=$$?; \
 		\
 		echo "Cleaning up..."; \
@@ -161,6 +147,9 @@ test-e2e-js-debug: build-testcontainers-debug ## Run end-to-end tests with full 
 		\
 		exit $$EXIT_CODE; \
 	}
+
+test-e2e-js-debug: ## Run E2E tests in debug mode (alias for DEBUG=2)
+	@$(MAKE) test-e2e-js DEBUG=2
 
 test-cache-clean: ## force test cache cleanup
 	@echo "Cleaning test cache..."
