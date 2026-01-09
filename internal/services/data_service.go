@@ -410,23 +410,24 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 
 		documentUpdated := false
 
-		// Process collections (similar to application logic)
+		// Process collections
 		for _, coll := range collections {
 			var collection models.UserCollection
 
-			if err := tx.Where("collection_name = ?", coll.Collection).
-				FirstOrCreate(&collection, models.UserCollection{CollectionName: coll.Collection}).Error; err != nil {
+			// Look up collection specifically linked to THIS document
+			err := tx.Model(&doc).Where("collection_name = ?", coll.Collection).Association("Collections").Find(&collection)
+			if err != nil {
 				return err
 			}
 
-			var count int64
-			tx.Table("user_documents_collections").
-				Where("document_id = ? AND collection_id = ?", doc.DocumentID, collection.CollectionID).
-				Count(&count)
-
-			if count == 0 {
-				if err := tx.Exec("INSERT INTO user_documents_collections (document_id, collection_id) VALUES (?, ?)",
-					doc.DocumentID, collection.CollectionID).Error; err != nil {
+			// If not found for this document, create a NEW collection record
+			if collection.CollectionID == 0 {
+				collection = models.UserCollection{CollectionName: coll.Collection}
+				if err := tx.Create(&collection).Error; err != nil {
+					return err
+				}
+				// Link it to the document
+				if err := tx.Model(&doc).Association("Collections").Append(&collection); err != nil {
 					return err
 				}
 				documentUpdated = true
@@ -440,13 +441,14 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 
 				var property models.UserProperty
 
-				err = tx.Table("user_properties p").
-					Select("p.*").
-					Joins("JOIN user_collections_properties cp ON p.property_id = cp.property_id").
-					Where("cp.collection_id = ? AND p.property_name = ?", collection.CollectionID, propName).
-					First(&property).Error
+				// Look up property specifically linked to THIS collection
+				err = tx.Model(&collection).Where("property_name = ?", propName).Association("Properties").Find(&property)
+				if err != nil {
+					return err
+				}
 
-				if err == gorm.ErrRecordNotFound {
+				if property.PropertyID == 0 {
+					// Create a new property for this collection
 					property = models.UserProperty{
 						PropertyName:  propName,
 						PropertyValue: jsonValue,
@@ -454,15 +456,13 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 					if err := tx.Create(&property).Error; err != nil {
 						return err
 					}
-
-					if err := tx.Exec("INSERT INTO user_collections_properties (collection_id, property_id) VALUES (?, ?)",
-						collection.CollectionID, property.PropertyID).Error; err != nil {
+					// Link it to the collection
+					if err := tx.Model(&collection).Association("Properties").Append(&property); err != nil {
 						return err
 					}
 					documentUpdated = true
-				} else if err != nil {
-					return err
 				} else {
+					// Update value if different
 					if string(property.PropertyValue) != string(jsonValue) {
 						if err := tx.Model(&property).Update("property_value", jsonValue).Error; err != nil {
 							return err

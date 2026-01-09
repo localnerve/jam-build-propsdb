@@ -133,8 +133,8 @@ func (h *AppDataHandler) SetAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
 	var body struct {
-		Version     types.FlexUint64           `json:"version"`
-		Collections []services.CollectionInput `json:"collections"`
+		Version     types.FlexUint64                         `json:"version"`
+		Collections types.FlexList[services.CollectionInput] `json:"collections"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -145,7 +145,7 @@ func (h *AppDataHandler) SetAppProperties(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.SetApplicationProperties(h.DB, document, body.Version.Uint64(), body.Collections)
+	newVersion, affectedRows, err := services.SetApplicationProperties(h.DB, document, body.Version.Uint64(), body.Collections.Slice())
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)
@@ -210,16 +210,16 @@ func (h *AppDataHandler) DeleteAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
 	var body struct {
-		Version        types.FlexUint64                 `json:"version"`
-		Collections    []services.DeleteCollectionInput `json:"collections"`
-		DeleteDocument bool                             `json:"deleteDocument"`
+		Version        types.FlexUint64                               `json:"version"`
+		Collections    types.FlexList[services.DeleteCollectionInput] `json:"collections"`
+		DeleteDocument bool                                           `json:"deleteDocument"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.DeleteApplicationProperties(h.DB, document, body.Version.Uint64(), body.Collections, body.DeleteDocument)
+	newVersion, affectedRows, err := services.DeleteApplicationProperties(h.DB, document, body.Version.Uint64(), body.Collections.Slice(), body.DeleteDocument)
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)

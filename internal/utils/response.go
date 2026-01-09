@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -52,7 +53,7 @@ func MutationSuccessResponse(c *fiber.Ctx, newVersion uint64, affectedRows int64
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "Success",
 		"ok":           true,
-		"newVersion":   newVersion,
+		"newVersion":   fmt.Sprintf("%d", newVersion),
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 		"affectedRows": affectedRows,
 	})
@@ -73,7 +74,7 @@ type ErrorResponseStruct struct {
 type SuccessResponseStruct struct {
 	Message      string `json:"message"`
 	Ok           bool   `json:"ok"`
-	NewVersion   uint64 `json:"newVersion"`
+	NewVersion   string `json:"newVersion"`
 	Timestamp    string `json:"timestamp"`
 	AffectedRows int64  `json:"affectedRows"`
 }

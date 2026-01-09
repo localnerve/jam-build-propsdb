@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/localnerve/authorizer-go"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/localnerve/propsdb/internal/services"
 	"github.com/localnerve/propsdb/internal/types"
@@ -23,15 +25,23 @@ func getUserID(c *fiber.Ctx) (string, error) {
 		return "", fmt.Errorf("user not found in context")
 	}
 
-	// The user object from authorizer should have an ID field
+	// Try as *authorizer.User struct first
+	if u, ok := user.(*authorizer.User); ok {
+		if u.ID == "" {
+			return "", fmt.Errorf("user ID not found in struct")
+		}
+		return u.ID, nil
+	}
+
+	// Fallback to map[string]interface{}
 	userMap, ok := user.(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("invalid user data format")
+		return "", fmt.Errorf("invalid user data format: %T", user)
 	}
 
 	userID, ok := userMap["id"].(string)
 	if !ok {
-		return "", fmt.Errorf("user ID not found")
+		return "", fmt.Errorf("user ID not found in map")
 	}
 
 	return userID, nil
@@ -178,8 +188,8 @@ func (h *UserDataHandler) SetUserProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
 	var body struct {
-		Version     types.FlexUint64           `json:"version"`
-		Collections []services.CollectionInput `json:"collections"`
+		Version     types.FlexUint64                         `json:"version"`
+		Collections types.FlexList[services.CollectionInput] `json:"collections"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -190,7 +200,7 @@ func (h *UserDataHandler) SetUserProperties(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.SetUserProperties(h.DB, userID, document, body.Version.Uint64(), body.Collections)
+	newVersion, affectedRows, err := services.SetUserProperties(h.DB, userID, document, body.Version.Uint64(), body.Collections.Slice())
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)
@@ -267,16 +277,16 @@ func (h *UserDataHandler) DeleteUserProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
 	var body struct {
-		Version        types.FlexUint64                 `json:"version"`
-		Collections    []services.DeleteCollectionInput `json:"collections"`
-		DeleteDocument bool                             `json:"deleteDocument"`
+		Version        types.FlexUint64                               `json:"version"`
+		Collections    types.FlexList[services.DeleteCollectionInput] `json:"collections"`
+		DeleteDocument bool                                           `json:"deleteDocument"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.DeleteUserProperties(h.DB, userID, document, body.Version.Uint64(), body.Collections, body.DeleteDocument)
+	newVersion, affectedRows, err := services.DeleteUserProperties(h.DB, userID, document, body.Version.Uint64(), body.Collections.Slice(), body.DeleteDocument)
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)
