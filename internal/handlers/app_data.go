@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/localnerve/propsdb/internal/services"
+	"github.com/localnerve/propsdb/internal/types"
 	"github.com/localnerve/propsdb/internal/utils"
 	"gorm.io/gorm"
 )
@@ -64,12 +65,7 @@ func (h *AppDataHandler) GetAppProperties(c *fiber.Ctx) error {
 // @Router /data/app/{document} [get]
 func (h *AppDataHandler) GetAppCollectionsAndProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
-	collectionsParam := c.Query("collections", "")
-
-	var collections []string
-	if collectionsParam != "" {
-		collections = strings.Split(collectionsParam, ",")
-	}
+	collections := parseCollections(c)
 
 	result, err := services.GetApplicationCollectionsAndProperties(h.DB, document, collections)
 	if err != nil {
@@ -137,7 +133,7 @@ func (h *AppDataHandler) SetAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
 	var body struct {
-		Version     uint64                     `json:"version"`
+		Version     types.FlexUint64           `json:"version"`
 		Collections []services.CollectionInput `json:"collections"`
 	}
 
@@ -149,7 +145,7 @@ func (h *AppDataHandler) SetAppProperties(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.SetApplicationProperties(h.DB, document, body.Version, body.Collections)
+	newVersion, affectedRows, err := services.SetApplicationProperties(h.DB, document, body.Version.Uint64(), body.Collections)
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)
@@ -179,14 +175,14 @@ func (h *AppDataHandler) DeleteAppCollection(c *fiber.Ctx) error {
 	collection := c.Params("collection")
 
 	var body struct {
-		Version uint64 `json:"version"`
+		Version types.FlexUint64 `json:"version"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.DeleteApplicationCollection(h.DB, document, body.Version, collection)
+	newVersion, affectedRows, err := services.DeleteApplicationCollection(h.DB, document, body.Version.Uint64(), collection)
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)
@@ -214,7 +210,7 @@ func (h *AppDataHandler) DeleteAppProperties(c *fiber.Ctx) error {
 	document := c.Params("document")
 
 	var body struct {
-		Version        uint64                           `json:"version"`
+		Version        types.FlexUint64                 `json:"version"`
 		Collections    []services.DeleteCollectionInput `json:"collections"`
 		DeleteDocument bool                             `json:"deleteDocument"`
 	}
@@ -223,7 +219,7 @@ func (h *AppDataHandler) DeleteAppProperties(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, "Invalid input", fiber.StatusBadRequest, "data.validation.input")
 	}
 
-	newVersion, affectedRows, err := services.DeleteApplicationProperties(h.DB, document, body.Version, body.Collections, body.DeleteDocument)
+	newVersion, affectedRows, err := services.DeleteApplicationProperties(h.DB, document, body.Version.Uint64(), body.Collections, body.DeleteDocument)
 	if err != nil {
 		if strings.Contains(err.Error(), "E_VERSION") {
 			return utils.VersionErrorResponse(c)

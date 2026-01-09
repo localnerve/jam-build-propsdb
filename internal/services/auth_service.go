@@ -1,17 +1,13 @@
 package services
 
 import (
-	//"bytes"
-	//"encoding/json"
 	"fmt"
-	//"io"
 	"log"
-	//"net/http"
-	//"strings"
+	"net/url"
+	"strings"
 	"sync"
-	//"time"
 
-	"github.com/authorizerdev/authorizer-go"
+	"github.com/localnerve/authorizer-go"
 	"github.com/localnerve/propsdb/internal/config"
 	"github.com/localnerve/propsdb/internal/utils"
 )
@@ -52,10 +48,21 @@ func InitAuthorizer(cfg *config.Config, requestProtocol, requestHost string) err
 	return initErr
 }
 
-// ValidateSession validates a session cookie for the given roles
-func ValidateSession(cookie string, roles []string) (map[string]interface{}, error) {
+// ValidateSession validates a session cookie or JWT for the given roles
+func ValidateSession(token string, roles []string) (map[string]interface{}, error) {
 	if authClient == nil {
 		return nil, fmt.Errorf("authorizer client not initialized")
+	}
+
+	// Unescape the token just in case it was URI-encoded
+	if unescaped, err := url.PathUnescape(token); err == nil {
+		token = unescaped
+	}
+
+	// If the token contains spaces, it might be due to '+' being incorrectly decoded
+	// Base64 tokens from Authorizer often contain '+'.
+	if strings.Contains(token, " ") {
+		token = strings.ReplaceAll(token, " ", "+")
 	}
 
 	// Convert roles to []*string
@@ -64,22 +71,42 @@ func ValidateSession(cookie string, roles []string) (map[string]interface{}, err
 		rolesPtrs[i] = &roles[i]
 	}
 
-	// Validate session using the authorizer-go SDK
+	// Check if the token is a JWT (contains dots)
+	if strings.Contains(token, ".") {
+		// Validate JWT using the authorizer-go SDK
+		res, err := authClient.ValidateJWTToken(&authorizer.ValidateJWTTokenInput{
+			Token:     token,
+			TokenType: authorizer.TokenTypeAccessToken,
+			Roles:     rolesPtrs,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("JWT validation failed: %w", err)
+		}
+
+		if res == nil || !res.IsValid {
+			return nil, fmt.Errorf("JWT is not valid")
+		}
+
+		// To get the full User object, we call GetProfile with the token in the header
+		user, err := authClient.GetProfile(map[string]string{
+			"Authorization": "Bearer " + token,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch user profile: %w", err)
+		}
+
+		return map[string]interface{}{
+			"is_valid": true,
+			"user":     user,
+		}, nil
+	}
+
+	// Traditional session validation using the authorizer-go SDK
 	res, err := authClient.ValidateSession(&authorizer.ValidateSessionInput{
-		Cookie: cookie,
+		Cookie: token,
 		Roles:  rolesPtrs,
 	})
-
-	/*
-		if err != nil && (strings.Contains(err.Error(), "selection of subfields") || strings.Contains(err.Error(), "GraphQL")) {
-			// Fallback to raw GraphQL if SDK fails with selection error
-			// We'll try to load config again since we don't have it here easily
-			cfg, configErr := config.Load()
-			if configErr == nil {
-				return validateSessionRaw(cfg, cookie, roles)
-			}
-		}
-	*/
 
 	if err != nil {
 		return nil, fmt.Errorf("session validation failed: %w", err)
@@ -96,70 +123,3 @@ func ValidateSession(cookie string, roles []string) (map[string]interface{}, err
 		"user":     res.User,
 	}, nil
 }
-
-/*
-// validateSessionRaw performs a raw GraphQL request for session validation
-func validateSessionRaw(cfg *config.Config, cookie string, roles []string) (map[string]interface{}, error) {
-	// Simple query - some versions of authorizer read session from Cookie header
-	query := `{
-		validate_session {
-			is_valid
-			user {
-				id
-				email
-			}
-		}
-	}`
-
-	payload := map[string]interface{}{
-		"query": query,
-	}
-
-	jsonPayload, _ := json.Marshal(payload)
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	// Append /graphql to base URL
-	graphqlURL := strings.TrimSuffix(cfg.AuthzURL, "/") + "/graphql"
-	req, err := http.NewRequest("POST", graphqlURL, bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	// Send the cookie in the Cookie header
-	req.Header.Set("Cookie", "cookie_session="+cookie)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to decode JSON: %v, body: %s", err, string(body))
-	}
-
-	if errors, ok := result["errors"].([]interface{}); ok && len(errors) > 0 {
-		return nil, fmt.Errorf("GraphQL error: %v, body: %s", errors[0], string(body))
-	}
-
-	data, ok := result["data"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("no data in response, body: %s", string(body))
-	}
-
-	validateSession, ok := data["validate_session"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("no validate_session in data, body: %s", string(body))
-	}
-
-	isValid, _ := validateSession["is_valid"].(bool)
-	user, _ := validateSession["user"].(map[string]interface{})
-
-	return map[string]interface{}{
-		"is_valid": isValid,
-		"user":     user,
-	}, nil
-}
-*/

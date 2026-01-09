@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/authorizerdev/authorizer-go"
+	"github.com/localnerve/authorizer-go"
 )
 
 func randInt(max int) int {

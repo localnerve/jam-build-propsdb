@@ -4,7 +4,6 @@ go 1.25.5
 
 require (
 	github.com/ansrivas/fiberprometheus/v2 v2.14.0
-	github.com/authorizerdev/authorizer-go v0.0.0-20240402105736-0eeef41a29a2
 	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/go-sql-driver/mysql v1.8.1
@@ -12,6 +11,7 @@ require (
 	github.com/gofiber/swagger v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/localnerve/authorizer-go v1.0.0
 	github.com/swaggo/swag v1.16.6
 	github.com/testcontainers/testcontainers-go v0.40.0
 	gorm.io/datatypes v1.2.7

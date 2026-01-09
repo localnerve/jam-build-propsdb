@@ -1,6 +1,42 @@
 package handlers
 
-import "reflect"
+import (
+	"reflect"
+	"strings"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+// parseCollections extracts collections from query parameters,
+// supporting both multiple 'collections' keys and comma-separated values.
+func parseCollections(c *fiber.Ctx) []string {
+	collectionMap := make(map[string]struct{})
+
+	// Visit all query arguments to collect multiple 'collections' parameters
+	c.Context().QueryArgs().VisitAll(func(key, value []byte) {
+		if string(key) == "collections" {
+			// Split by comma in case the value itself is comma-separated
+			vals := strings.Split(string(value), ",")
+			for _, v := range vals {
+				v = strings.TrimSpace(v)
+				if v != "" {
+					collectionMap[v] = struct{}{}
+				}
+			}
+		}
+	})
+
+	if len(collectionMap) == 0 {
+		return nil
+	}
+
+	collections := make([]string, 0, len(collectionMap))
+	for k := range collectionMap {
+		collections = append(collections, k)
+	}
+
+	return collections
+}
 
 // hasContent checks if the result map contains any non-empty properties
 // ignoring metadata like "__version"

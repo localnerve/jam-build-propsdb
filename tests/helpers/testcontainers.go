@@ -68,6 +68,8 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	ctx := context.Background()
 	testContainers := &TestContainers{}
 
+	debugContainer := os.Getenv("DEBUG_CONTAINER")
+
 	// Create a network
 	nw, err := network.New(ctx)
 	if err != nil {
@@ -128,6 +130,10 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		exitWithError(t, err, "Failed to create Authorizer port")
 	}
 	authzDbConnection := fmt.Sprintf("root:%s@tcp(%s:%s)/%s", os.Getenv("DB_ROOT_PASSWORD"), dbNetworkName, os.Getenv("DB_PORT"), os.Getenv("AUTHZ_DATABASE"))
+	authzLogLevel := "info"
+	if debugContainer == "true" {
+		authzLogLevel = "debug"
+	}
 	authorizerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        os.Getenv("AUTHZ_IMAGE"),
@@ -142,6 +148,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 				"ADMIN_SECRET":  os.Getenv("AUTHZ_ADMIN_SECRET"),
 				"ROLES":         "admin,user",
 				"DEFAULT_ROLES": "user",
+				"LOG_LEVEL":     authzLogLevel,
 			},
 			WaitingFor: wait.ForLog("Authorizer running at PORT:").WithStartupTimeout(10 * time.Second),
 			Networks:   []string{networkName},
@@ -161,8 +168,6 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	authzHost, _ := authorizerContainer.Host(ctx)
 	authzPort, _ := authorizerContainer.MappedPort(ctx, tcpAuthzPort)
 	logMessage(t, "AUTHZ_URL=%s:%s", authzHost, authzPort.Port())
-
-	debugContainer := os.Getenv("DEBUG_CONTAINER")
 
 	imageName := "propsdb-test:latest"
 
@@ -249,11 +254,16 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			propsdbBuildArgs["DEBUG"] = &debugContainer
 		}
 
+		buildContext := os.Getenv("TESTCONTAINERS_BUILD_CONTEXT")
+		if buildContext == "" {
+			buildContext = "../.."
+		}
+
 		logMessage(t, "Image %s does not exist, building...", imageName)
 		propsdbBuilderContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
 				FromDockerfile: testcontainers.FromDockerfile{
-					Context:    "../..",
+					Context:    buildContext,
 					Dockerfile: "Dockerfile",
 					Repo:       "propsdb-test-builder",
 					Tag:        "latest",
@@ -274,7 +284,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 		imageNameParts := strings.Split(imageName, ":")
 		fromDockerfile := testcontainers.FromDockerfile{
-			Context:    "../..",
+			Context:    buildContext,
 			Dockerfile: "Dockerfile",
 			Repo:       imageNameParts[0],
 			Tag:        imageNameParts[1],
