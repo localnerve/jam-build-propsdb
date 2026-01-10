@@ -26,6 +26,12 @@ services:
       - DB_CONNECTION_LIMIT=${DB_CONNECTION_LIMIT}
       - AUTHZ_URL=${AUTHZ_URL}
       - AUTHZ_CLIENT_ID=${AUTHZ_CLIENT_ID}
+    healthcheck:
+      test: ["CMD", "/app/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
     depends_on:
       database:
         condition: service_healthy
