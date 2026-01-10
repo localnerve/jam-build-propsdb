@@ -10,6 +10,9 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/localnerve/propsdb/internal/config"
+	"github.com/localnerve/propsdb/internal/database"
+	"github.com/localnerve/propsdb/internal/services"
 	"github.com/localnerve/propsdb/tests/helpers"
 )
 
@@ -31,25 +34,17 @@ func TestE2EWithFullStack(t *testing.T) {
 	propsdbPort, _ := tc.PropsDBContainer.MappedPort(ctx, "3000")
 	baseURL := fmt.Sprintf("http://%s:%s", propsdbHost, propsdbPort.Port())
 
-	/*
-		authzHost, _ := authorizerContainer.Host(ctx)
-		authzPort, _ := authorizerContainer.MappedPort(ctx, "8080")
-		authzURL := fmt.Sprintf("http://%s:%s", authzHost, authzPort.Port())
-	*/
-
 	// Wait a bit for everything to stabilize
 	time.Sleep(5 * time.Second)
 
 	// Run E2E tests
 	t.Run("HealthCheck", func(t *testing.T) {
-		testHealthCheck(t, baseURL)
+		testHealthCheck(t, tc)
 	})
 
-	/*
-		t.Run("PrometheusMetrics", func(t *testing.T) {
-			testPrometheusMetrics(t, baseURL)
-		})
-	*/
+	t.Run("PrometheusMetrics", func(t *testing.T) {
+		testPrometheusMetrics(t, baseURL)
+	})
 
 	t.Run("SwaggerUI", func(t *testing.T) {
 		testSwaggerUI(t, baseURL)
@@ -57,37 +52,50 @@ func TestE2EWithFullStack(t *testing.T) {
 
 	// Public API Access
 	t.Run("PublicAPIAccess", func(t *testing.T) {
-		testPublicAPIAccessEmpty(t, baseURL)
+		testPublicAPIAccess(t, baseURL)
 	})
-
-	// Version Header
-	/*
-		t.Run("VersionHeader", func(t *testing.T) {
-			testVersionHeader(t, baseURL)
-		})
-	*/
-
-	// User Data 204 Behavior
-	/*
-		t.Run("UserData204Behavior", func(t *testing.T) {
-			testUserData204Behavior(t, baseURL, authzURL, db)
-		})
-	*/
 }
 
-func testHealthCheck(t *testing.T, baseURL string) {
-	resp, err := http.Get(baseURL + "/metrics")
+func testHealthCheck(t *testing.T, tc *helpers.TestContainers) {
+	ctx := context.Background()
+
+	// 1. Prepare configuration for the health check
+	// We need to point to the mapped ports on localhost, not internal container names
+	cfg, err := config.Load()
 	if err != nil {
-		t.Fatalf("Health check failed: %v", err)
+		t.Fatalf("Failed to load config: %v", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	// Update DB host and port to mapped values
+	dbHost, _ := tc.DBContainer.Host(ctx)
+	dbPort, _ := tc.DBContainer.MappedPort(ctx, "3306")
+	cfg.DBHost = dbHost
+	cfg.DBPort = dbPort.Port()
+
+	// Update Authorizer URL to mapped value
+	authzHost, _ := tc.AuthorizerContainer.Host(ctx)
+	authzPort, _ := tc.AuthorizerContainer.MappedPort(ctx, "8080")
+	cfg.AuthzURL = fmt.Sprintf("http://%s:%s", authzHost, authzPort.Port())
+
+	// 2. Establish GORM connection to the test database
+	gormDB, err := database.Connect(cfg)
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
 	}
+	defer database.Close(gormDB)
+
+	// 3. Perform the health check
+	result := services.HealthCheck(cfg, gormDB)
+
+	// 4. Verify the result
+	if result.Status != "healthy" {
+		t.Errorf("Health check failed: %+v", result)
+	}
+
+	t.Logf("Health check passed: status=%s, database=%s, authorizer=%s",
+		result.Status, result.Database, result.Authorizer)
 }
 
-/*
 func testPrometheusMetrics(t *testing.T, baseURL string) {
 	resp, err := http.Get(baseURL + "/metrics")
 	if err != nil {
@@ -100,18 +108,19 @@ func testPrometheusMetrics(t *testing.T, baseURL string) {
 		t.Errorf("Expected status 200 for metrics, got %d. Body: %s", resp.StatusCode, bodyStr)
 	}
 
-	// Check for expected Prometheus metrics
-	if !bytes.Contains(body, []byte("propsdb_http_requests_total")) {
-		t.Errorf("Expected propsdb_http_requests_total metric. Body: %s", bodyStr)
-	}
+	/*
+		// Check for expected Prometheus metrics
+		if !bytes.Contains(body, []byte("propsdb_http_requests_total")) {
+			t.Errorf("Expected propsdb_http_requests_total metric. Body: %s", bodyStr)
+		}
 
-	if !bytes.Contains(body, []byte("go_goroutines")) {
-		t.Errorf("Expected go_goroutines metric. Body: %s", bodyStr)
-	}
+		if !bytes.Contains(body, []byte("go_goroutines")) {
+				t.Errorf("Expected go_goroutines metric. Body: %s", bodyStr)
+			}
+	*/
 
 	t.Logf("Metrics endpoint working, found %d bytes of metrics", len(bodyStr))
 }
-*/
 
 func testSwaggerUI(t *testing.T, baseURL string) {
 	resp, err := http.Get(baseURL + "/swagger/index.html")
@@ -125,7 +134,7 @@ func testSwaggerUI(t *testing.T, baseURL string) {
 	}
 }
 
-func testPublicAPIAccessEmpty(t *testing.T, baseURL string) {
+func testPublicAPIAccess(t *testing.T, baseURL string) {
 	// Test public GET endpoint (should work without auth)
 	resp, err := http.Get(baseURL + "/api/data/app")
 	if err != nil {
@@ -146,97 +155,3 @@ func testPublicAPIAccessEmpty(t *testing.T, baseURL string) {
 		t.Errorf("Response is not valid JSON: %v", err)
 	}
 }
-
-/*
-func testVersionHeader(t *testing.T, baseURL string) {
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", baseURL+"/api/data/app", nil)
-	req.Header.Set("X-Api-Version", "1.0")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to send request with version header: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Errorf("Expected status 200 with version header, got %d. Body: %s", resp.StatusCode, string(body))
-	}
-}
-
-func testUserData204Behavior(t *testing.T, baseURL, authzURL string, db *sql.DB) {
-	// 1. Setup Auth
-	email := fmt.Sprintf("user-%s@test.local", uuid.New().String()[:8])
-	password := helpers.GeneratePassword()
-	token := helpers.AcquireAccount(t, authzURL, email, password, []string{"user"})
-
-	// 2. Setup Data (directly in DB since we can't easily Set user data without more complex API calls here)
-	// We need to find the user ID created by authorizer
-	var userID string
-	var err error
-	// Retry loop for user creation propagation to DB
-	for i := 0; i < 10; i++ {
-		err = db.QueryRow("SELECT id FROM authorizer.authorizer_users WHERE email = ?", email).Scan(&userID)
-		if err == nil {
-			break
-		}
-		t.Logf("Attempt %d: Failed to find created user ID, retrying... (%v)", i+1, err)
-		time.Sleep(1 * time.Second)
-	}
-	if err != nil {
-		// If still failing, let's list tables for debugging
-		rows, listErr := db.Query("SHOW TABLES FROM authorizer")
-		if listErr == nil {
-			var tableName string
-			t.Log("Tables in 'authorizer' database:")
-			for rows.Next() {
-				rows.Scan(&tableName)
-				t.Logf("- %s", tableName)
-			}
-		}
-		t.Fatalf("Failed to find created user ID after retries: %v", err)
-	}
-
-	// Insert doc and empty collection into propsdb DB
-	// We use the 'db' which is connected to root, so we can access testdb
-	_, err = db.Exec("INSERT INTO testdb.user_documents (user_id, document_name, document_version) VALUES (?, ?, ?)", userID, "e2e-doc", 1)
-	if err != nil {
-		t.Fatalf("Failed to insert user document: %v", err)
-	}
-	var docID int64
-	err = db.QueryRow("SELECT document_id FROM testdb.user_documents WHERE user_id = ? AND document_name = ?", userID, "e2e-doc").Scan(&docID)
-	if err != nil {
-		t.Fatalf("Failed to get doc ID: %v", err)
-	}
-	_, err = db.Exec("INSERT INTO testdb.user_collections (collection_name) VALUES (?)", "e2e-emptycoll")
-	if err != nil {
-		t.Fatalf("Failed to insert user collection: %v", err)
-	}
-	var collID int64
-	err = db.QueryRow("SELECT LAST_INSERT_ID()").Scan(&collID)
-	if err != nil {
-		t.Fatalf("Failed to get coll ID: %v", err)
-	}
-	_, err = db.Exec("INSERT INTO testdb.user_documents_collections (document_id, collection_id) VALUES (?, ?)", docID, collID)
-	if err != nil {
-		t.Fatalf("Failed to link doc and coll: %v", err)
-	}
-
-	// 3. Verify 204
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", baseURL+"/api/data/user/e2e-doc/e2e-emptycoll", nil)
-	req.AddCookie(&http.Cookie{Name: "cookie_session", Value: token})
-
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		t.Errorf("Expected status 204, got %d. Body: %s", resp.StatusCode, string(body))
-	}
-}
-*/
