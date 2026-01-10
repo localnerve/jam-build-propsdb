@@ -732,7 +732,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "newVersion": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "ok": {
                     "type": "boolean"
