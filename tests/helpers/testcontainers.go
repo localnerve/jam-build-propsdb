@@ -14,6 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"archive/tar"
+	"io"
+	"path/filepath"
+
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
@@ -33,11 +37,34 @@ type TestContainers struct {
 	AuthorizerContainer     testcontainers.Container
 	PropsDBContainer        testcontainers.Container
 	PropsDBBuilderContainer testcontainers.Container
+	CoverageDir             string
 }
 
 func (tc *TestContainers) Terminate(t *testing.T) {
 	ctx := context.Background()
 	if tc.PropsDBContainer != nil {
+		if tc.CoverageDir != "" {
+			// We MUST trigger the Go coverage flush by sending SIGTERM.
+			// The app now sleeps for 5 seconds AFTER flushing to allow us to extract files.
+			logMessage(t, "Signaling PropsDB container %s to flush coverage data...", tc.PropsDBContainer.GetContainerID())
+
+			// Use the docker client directly since the testcontainers-go Container interface
+			// might not expose Signal() in the current version.
+			cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+			if err == nil {
+				if killErr := cli.ContainerKill(ctx, tc.PropsDBContainer.GetContainerID(), "SIGTERM"); killErr != nil {
+					logMessage(t, "Warning: Failed to signal PropsDB container via Docker API: %v", killErr)
+				}
+				cli.Close()
+			} else {
+				logMessage(t, "Warning: Failed to create Docker client for signaling: %v", err)
+			}
+
+			// Give the app a moment to write the files (it sleeps for 5s, so 2s is safe)
+			time.Sleep(2 * time.Second)
+
+			tc.collectCoverage(t)
+		}
 		if err := tc.PropsDBContainer.Terminate(ctx); err != nil {
 			logMessage(t, "Failed to terminate PropsDB: %v", err)
 		}
@@ -62,6 +89,116 @@ func (tc *TestContainers) Terminate(t *testing.T) {
 			logMessage(t, "Failed to remove network: %v", err)
 		}
 	}
+}
+
+func (tc *TestContainers) collectCoverage(t *testing.T) {
+	ctx := context.Background()
+	logMessage(t, "Collecting test coverage from container path %s to local %s...", "/app/coverage", tc.CoverageDir)
+
+	// Ensure local coverage dir exists
+	if err := os.MkdirAll(tc.CoverageDir, 0755); err != nil {
+		logMessage(t, "CRITICAL: Failed to create local coverage dir %s: %v", tc.CoverageDir, err)
+		return
+	}
+
+	// Log container state for diagnostics
+	if insp, err := tc.PropsDBContainer.Inspect(ctx); err == nil && insp.State != nil {
+		logMessage(t, "  Container state: Running=%v, Status=%s", insp.State.Running, insp.State.Status)
+	}
+
+	// DIAGNOSTIC: Force an 'ls' via Exec to verify files and sync filesystem
+	exitCode, output, err := tc.PropsDBContainer.Exec(ctx, []string{"ls", "-la", "/app/coverage"})
+	if err == nil {
+		logMessage(t, "  Diagnostic 'ls /app/coverage' result (exit %d):\n%s", exitCode, output)
+	} else {
+		logMessage(t, "  Diagnostic 'ls' failed: %v", err)
+	}
+
+	// Extract the coverage data as a tar stream using the direct Docker client
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		logMessage(t, "CRITICAL: Failed to create Docker client for extraction: %v", err)
+		return
+	}
+	defer cli.Close()
+
+	reader, stat, err := cli.CopyFromContainer(ctx, tc.PropsDBContainer.GetContainerID(), "/app/coverage")
+	if err != nil {
+		logMessage(t, "CRITICAL: CopyFromContainer failed: %v", err)
+		return
+	}
+	defer reader.Close()
+	logMessage(t, "  Docker API reports path stat: size=%d, name=%s", stat.Size, stat.Name)
+
+	// Untar the content into the local coverage directory
+	tr := tar.NewReader(reader)
+	filesExtracted := 0
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			logMessage(t, "  Reached end of tar stream (EOF)")
+			break
+		}
+		if err != nil {
+			logMessage(t, "ERROR: Error reading tar stream: %v", err)
+			return
+		}
+
+		logMessage(t, "  Found in tar: %s (size: %d, type: %c)", header.Name, header.Size, header.Typeflag)
+
+		// The tar from CopyFromContainer contains the requested directory as the root.
+		// It can be "coverage", "coverage/", "./coverage", or full path suffix.
+		name := header.Name
+		relPath := ""
+
+		if idx := strings.Index(name, "coverage/"); idx != -1 {
+			relPath = name[idx+len("coverage/"):]
+		} else if name == "coverage" || name == "coverage/" || name == "." || name == "./" {
+			continue // Skip root
+		} else {
+			// Fallback: just use the name if it doesn't have the expected prefix
+			relPath = name
+		}
+
+		if relPath == "" {
+			continue
+		}
+
+		target := filepath.Join(tc.CoverageDir, relPath)
+		logMessage(t, "  Extracting: %s -> %s", header.Name, target)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				logMessage(t, "  ERROR: Failed to create dir %s: %v", target, err)
+				return
+			}
+		case tar.TypeReg:
+			// Ensure parent directory exists
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				logMessage(t, "  ERROR: Failed to create parent dir for %s: %v", target, err)
+				return
+			}
+
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
+			if err != nil {
+				logMessage(t, "  ERROR: Failed to create file %s: %v", target, err)
+				return
+			}
+			n, err := io.Copy(f, tr)
+			f.Close()
+			if err != nil {
+				logMessage(t, "  ERROR: Failed to copy file content to %s: %v", target, err)
+				return
+			}
+			logMessage(t, "  Extracted %d bytes to %s", n, target)
+			filesExtracted++
+		default:
+			logMessage(t, "  SKIPPING: Unknown type %v for %s", header.Typeflag, header.Name)
+		}
+	}
+
+	logMessage(t, "Coverage collection complete. Total files extracted: %d", filesExtracted)
 }
 
 func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
@@ -190,6 +327,12 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		propsdbExposedPorts = append(propsdbExposedPorts, "2345/tcp")
 	}
 
+	coverageDir := os.Getenv("COVERAGE_DIR")
+	collectCoverage := os.Getenv("COLLECT_COVERAGE") == "true"
+	if collectCoverage && coverageDir != "" {
+		testContainers.CoverageDir = coverageDir
+	}
+
 	hostConfigModifier := func(hostConfig *container.HostConfig) {
 		if debugContainer == "true" {
 			hostConfig.PortBindings = nat.PortMap{
@@ -231,6 +374,10 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		Networks:           []string{networkName},
 	}
 
+	if testContainers.CoverageDir != "" {
+		propsdbContainerRequest.Env["GOCOVERDIR"] = "/app/coverage"
+	}
+
 	if debugContainer == "true" {
 		propsdbContainerRequest.Entrypoint = []string{
 			"/usr/local/bin/dlv",
@@ -252,6 +399,11 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		}
 		if debugContainer == "true" {
 			propsdbBuildArgs["DEBUG"] = &debugContainer
+		}
+		isCoverage := "false"
+		if testContainers.CoverageDir != "" {
+			isCoverage = "true"
+			propsdbBuildArgs["COVER"] = &isCoverage
 		}
 
 		buildContext := os.Getenv("TESTCONTAINERS_BUILD_CONTEXT")

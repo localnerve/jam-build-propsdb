@@ -10,6 +10,7 @@
 # Test binaries
 *.test
 *.out
+__debug_bin*
 
 # Go workspace file
 go.work
@@ -20,6 +21,7 @@ go.work
 .env.*.local
 .env.test
 .env.debug
+.env.cover
 
 # IDE
 .vscode/

@@ -1,6 +1,7 @@
 # Build arguments
 ARG RESOURCE_REAPER_SESSION_ID="00000000-0000-0000-0000-000000000000"
 ARG DEBUG=false
+ARG COVER=false
 
 # ------------------
 # Build stage
@@ -8,6 +9,7 @@ FROM golang:1.25-alpine AS builder
 ARG RESOURCE_REAPER_SESSION_ID
 LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 ARG DEBUG
+ARG COVER
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -32,10 +34,15 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Conditionally build with debug flags
+# Conditionally build with debug or coverage flags
 RUN if [ "$DEBUG" = "true" ]; then \
+  echo "Building DEBUG binary"; \
   CGO_ENABLED=0 GOOS=linux go build -gcflags="all=-N -l" -o propsdb ./cmd/server; \
+elif [ "$COVER" = "true" ]; then \
+  echo "Building COVER binary"; \
+  CGO_ENABLED=0 GOOS=linux go build -cover -coverpkg=./... -covermode=atomic -o propsdb ./cmd/server; \
 else \
+  echo "Building PRODUCTION binary"; \
   CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o propsdb ./cmd/server; \
 fi
 
@@ -62,6 +69,9 @@ COPY --from=builder /app/propsdb .
 COPY --from=builder /app/healthcheck .
 # Copy dlv if it was built
 COPY --from=builder /go/bin/dlv* /usr/local/bin/
+
+# Create coverage directory
+RUN mkdir -p /app/coverage
 
 # Change ownership
 RUN chown -R appuser:appuser /app

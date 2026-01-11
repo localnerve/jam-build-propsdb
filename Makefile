@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet check install-tools install dev
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet check install-tools install dev test-e2e-js-report
 
 # Variables
 BINARY_NAME=propsdb
@@ -9,6 +9,7 @@ DOCKER_TAG=latest
 COVERAGE_DIR=coverage
 COVERAGE_FILE=$(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML=$(COVERAGE_DIR)/coverage.html
+TESTCONTAINERS_LOG=testcontainers.log
 SWAGGER_DIR=docs/api
 
 # Docker parameters
@@ -116,10 +117,10 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 			$(MAKE) build-testcontainers; \
 		fi; \
 		echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
-		./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > testcontainers.log 2>&1 & \
+		./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > $(TESTCONTAINERS_LOG) 2>&1 & \
 		TCPID=$$!; \
 		count=0; \
-		while ! grep -q "PropsDB testcontainer started" testcontainers.log; do \
+		while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 			if [ $$count -ge $$TIMEOUT ]; then \
 				echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
 			fi; \
@@ -137,8 +138,8 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 		else \
 			echo "\nReady! Running E2E tests..."; \
 		fi; \
-		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) > .env.test; \
-		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' testcontainers.log) >> .env.test; \
+		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' $(TESTCONTAINERS_LOG)) > .env.test; \
+		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' $(TESTCONTAINERS_LOG)) >> .env.test; \
 		$(GODOTENVCMD) -f .env.test,$$ENV_FILE_TO_USE $(NPXCMD) playwright test --project api-chromium; \
 		EXIT_CODE=$$?; \
 		\
@@ -150,6 +151,97 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 
 test-e2e-js-debug: ## Run E2E tests in debug mode (alias for DEBUG=2)
 	@$(MAKE) test-e2e-js DEBUG=2
+
+test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 (rebuild orchestrator), HOST_DEBUG=1 (debug host)
+	@{ \
+	  rm -rf $(COVERAGE_DIR)/e2e-js; \
+		REBUILD_VAL=$(REBUILD); \
+		[ -z "$$REBUILD_VAL" ] && REBUILD_VAL=0; \
+		echo "Setting up .env.cover..." ; \
+		rm -f .env.cover; \
+		cp $(ENV_FILE) .env.cover; \
+		printf '\n' >> .env.cover; \
+		echo "COVERAGE_DIR=$(COVERAGE_DIR)/e2e-js" >> .env.cover; \
+		echo "COLLECT_COVERAGE=true" >> .env.cover; \
+		echo "TESTCONTAINERS_BUILD_CONTEXT=." >> .env.cover; \
+		if [ "$(HOST_DEBUG)" = "1" ]; then \
+			echo "HOST_DEBUG=true" >> .env.cover; \
+		fi; \
+		ENV_FILE_TO_USE=.env.cover; \
+		TIMEOUT=120; \
+		if [ "$$REBUILD_VAL" -eq 1 ]; then \
+			$(MAKE) build-testcontainers-debug; \
+		else \
+			$(MAKE) build-testcontainers; \
+		fi; \
+		if [ "$(HOST_DEBUG)" = "1" ]; then \
+			echo "\nHOST_DEBUG enabled!"; \
+			echo "1. Open a new terminal and run: make test-e2e-js-orchestrator-debug"; \
+			echo "2. Set your breakpoints in tests/helpers/testcontainers.go (e.g., collectCoverage)"; \
+			echo "3. Type 'continue' in the debugger."; \
+			echo "4. Wait for 'PropsDB testcontainer started' and then press enter here..."; \
+			read -r dummy; \
+		else \
+			echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
+			./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > $(TESTCONTAINERS_LOG) 2>&1 & \
+			TCPID=$$!; \
+			count=0; \
+			while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
+				if [ $$count -ge $$TIMEOUT ]; then \
+					echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+				fi; \
+				printf '%s' "."; \
+				sleep 1; count=`expr $$count + 1`; \
+			done; \
+		fi; \
+		echo "\nReady! Running E2E tests with coverage..."; \
+		echo $$(awk -F'=' '/AUTHZ_URL/ {print $$1"=""http://"$$2; exit}' $(TESTCONTAINERS_LOG)) > .env.test; \
+		echo $$(awk -F'=' '/BASE_URL/ {print $$1"=""http://"$$2; exit}' $(TESTCONTAINERS_LOG)) >> .env.test; \
+		$(GODOTENVCMD) -f .env.test,$$ENV_FILE_TO_USE $(NPXCMD) playwright test --project api-chromium; \
+		EXIT_CODE=$$?; \
+		\
+		echo "Cleaning up and collecting coverage..."; \
+		if [ "$(HOST_DEBUG)" = "1" ]; then \
+			echo "Please stop the debugger (Ctrl+C and 'quit' or 'exit') to trigger coverage collection, then press enter here."; \
+			read -r dummy; \
+		else \
+			kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
+		fi; \
+		sleep 3; # wait for coverage collection to finish\
+		echo "Coverage extraction log can be found in $(TESTCONTAINERS_LOG)"; \
+		$(MAKE) test-e2e-js-report; \
+		exit $$EXIT_CODE; \
+	}
+
+test-e2e-js-report: ## Generate and display coverage report for E2E JS tests.
+	@if [ -d "$(COVERAGE_DIR)/e2e-js" ]; then \
+		echo "\n================================================================================" ; \
+		echo "E2E JS COVERAGE SUMMARY" ; \
+		echo "================================================================================" ; \
+		$(GOCMD) tool covdata percent -i=$(COVERAGE_DIR)/e2e-js ; \
+		echo "--------------------------------------------------------------------------------" ; \
+		$(GOCMD) tool covdata textfmt -i=$(COVERAGE_DIR)/e2e-js -o=$(COVERAGE_DIR)/e2e-js/coverage.out ; \
+		$(GOCMD) tool cover -func=$(COVERAGE_DIR)/e2e-js/coverage.out | grep -v "100.0%" | head -n 20 ; \
+		echo "--------------------------------------------------------------------------------" ; \
+		echo "Generating HTML coverage report..." ; \
+		$(GOCMD) tool cover -html=$(COVERAGE_DIR)/e2e-js/coverage.out -o=$(COVERAGE_DIR)/e2e-js/coverage.html ; \
+		echo "Coverage report available at: $(COVERAGE_DIR)/e2e-js/coverage.html" ; \
+		## open $(COVERAGE_DIR)/e2e-js/coverage.html 2>/dev/null || echo "Please open file://$(PWD)/$(COVERAGE_DIR)/e2e-js/coverage.html manually" ; \
+		echo "================================================================================\n" ; \
+	else \
+		echo "No E2E JS coverage data found in $(COVERAGE_DIR)/e2e-js"; \
+	fi
+
+test-e2e-js-orchestrator-debug: build-testcontainers ## Run the testcontainers binary under Delve (headless) for VS Code attachment.
+	@ENV_TO_USE=$(ENV_FILE); \
+	if [ -f .env.cover ]; then ENV_TO_USE=.env.cover; fi; \
+	echo "Starting testcontainers orchestrator in headless debug mode with $$ENV_TO_USE..." ; \
+	echo "Listening on :2345. Use VS Code 'Attach to Delve (in Test)' to begin." ; \
+	$(DLVCMD) debug ./cmd/testcontainers --headless --listen=:2345 --api-version=2 --accept-multiclient --log -- -f $$ENV_TO_USE | tee $(TESTCONTAINERS_LOG)
+
+test-e2e-js-host-debug: build-testcontainers ## Debug the testcontainers host process itself using Delve.
+	@echo "Starting testcontainers host process in debug mode..."
+	$(DLVCMD) debug ./cmd/testcontainers -- -f $(ENV_FILE)
 
 test-cache-clean: ## force test cache cleanup
 	@echo "Cleaning test cache..."

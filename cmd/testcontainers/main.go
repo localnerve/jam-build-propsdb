@@ -58,8 +58,28 @@ example
 		}
 	}()
 
-	sig := <-sigs
-	log.Printf("\nReceived signal: %v, terminating test containers...\n", sig)
+	// Wait for signal or interactive termination
+	if os.Getenv("HOST_DEBUG") == "true" {
+		log.Printf(">>> If Debugging, PRESS ENTER TO TERMINATE AND COLLECT COVERAGE <<<\n")
+
+		done := make(chan bool)
+		go func() {
+			buf := make([]byte, 1)
+			_, _ = os.Stdin.Read(buf)
+			done <- true
+		}()
+
+		select {
+		case sig := <-sigs:
+			log.Printf("\nReceived signal: %v, terminating test containers...\n", sig)
+		case <-done:
+			log.Printf("\nTermination requested via stdin, terminating test containers...\n")
+		}
+	} else {
+		sig := <-sigs
+		log.Printf("\nReceived signal: %v, terminating test containers...\n", sig)
+	}
+
 	if testContainers != nil {
 		testContainers.Terminate(nil)
 	}

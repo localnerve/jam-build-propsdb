@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/coverage"
 	"syscall"
 	"time"
 
@@ -148,6 +149,22 @@ func main() {
 	go func() {
 		<-c
 		log.Println("Gracefully shutting down...")
+
+		// Explicitly write coverage data before exiting
+		// This ensures data is flushed even when we catch the signal
+		if coverDir := os.Getenv("GOCOVERDIR"); coverDir != "" {
+			log.Printf("Flushing coverage data to %s...", coverDir)
+			// Ensure the directory exists (it should, but just in case)
+			if err := os.MkdirAll(coverDir, 0755); err != nil {
+				log.Printf("Warning: failed to create coverage directory: %v", err)
+			}
+			if err := coverage.WriteCountersDir(coverDir); err != nil {
+				log.Printf("Warning: failed to write coverage counters: %v", err)
+			}
+			log.Println("Coverage flush complete. Waiting for orchestrator to extract...")
+			time.Sleep(5 * time.Second) // Give the host time to extract files
+		}
+
 		_ = app.Shutdown()
 	}()
 
