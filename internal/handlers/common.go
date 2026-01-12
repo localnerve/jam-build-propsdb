@@ -13,7 +13,8 @@ func parseCollections(c *fiber.Ctx) []string {
 	collectionMap := make(map[string]struct{})
 
 	// Visit all query arguments to collect multiple 'collections' parameters
-	c.Context().QueryArgs().VisitAll(func(key, value []byte) {
+	args := c.Context().QueryArgs()
+	for key, value := range args.All() {
 		if string(key) == "collections" {
 			// Split by comma in case the value itself is comma-separated
 			vals := strings.Split(string(value), ",")
@@ -24,7 +25,7 @@ func parseCollections(c *fiber.Ctx) []string {
 				}
 			}
 		}
-	})
+	}
 
 	if len(collectionMap) == 0 {
 		return nil
