@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs swagger swagger-serve lint fmt vet check install-tools install dev test-e2e-js-report
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs obs-up obs-down obs-logs swagger swagger-serve lint fmt vet check install-tools install dev test-e2e-js-report
 
 # Variables
 BINARY_NAME=propsdb
@@ -292,6 +292,17 @@ docker-compose-down: ## Stop all Docker Compose services
 
 docker-compose-logs: ## View Docker Compose logs
 	docker-compose --env-file $(ENV_FILE) logs -f
+
+obs-up: ## Start observability services
+	@echo "Starting observability services..."
+	docker-compose -f docker-compose.observability.yml up -d
+
+obs-down: ## Stop observability services
+	@echo "Stopping observability services..."
+	docker-compose -f docker-compose.observability.yml down
+
+obs-logs: ## View observability logs
+	docker-compose -f docker-compose.observability.yml logs -f
 
 swagger: ## Generate OpenAPI/Swagger documentation
 	@echo "Generating Swagger documentation..."
