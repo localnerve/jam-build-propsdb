@@ -1,5 +1,5 @@
 # Binaries
-/propsdb
+/jam-build-propsdb
 /healthcheck
 /testcontainers
 *.exe
@@ -22,6 +22,7 @@ go.work
 .env.test
 .env.debug
 .env.cover
+.env.docker
 
 # IDE
 .vscode/

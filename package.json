@@ -1,5 +1,5 @@
 {
-  "name": "propsdb",
+  "name": "jam-build-propsdb",
   "version": "1.0.0",
   "description": "The e2e test harness for propsdb, the multi-user, concurrent, RBAC property api service in go fiber",
   "scripts": {
@@ -8,13 +8,13 @@
   "imports": {
     "#test/*": "./tests/e2e-js/*"
   },
-  "homepage": "https://github.com/localnerve/propsdb#readme",
+  "homepage": "https://github.com/localnerve/jam-build-propsdb#readme",
   "bugs": {
-    "url": "https://github.com/localnerve/propsdb/issues"
+    "url": "https://github.com/localnerve/jam-build-propsdb/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/localnerve/propsdb.git"
+    "url": "git+https://github.com/localnerve/jam-build-propsdb.git"
   },
   "private": true,
   "license": "AGPL-3.0-or-later",

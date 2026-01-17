@@ -1,4 +1,4 @@
-module github.com/localnerve/propsdb
+module github.com/localnerve/jam-build-propsdb
 
 go 1.25.5
 

@@ -8,7 +8,7 @@ The health check utility can be run in several ways:
 
 ```bash
 # Build the healthcheck binary
-go build -o healthcheck ./cmd/healthcheck
+make build-healthcheck
 
 # Run with environment variables
 export DB_TYPE=mysql
@@ -27,7 +27,7 @@ export AUTHZ_CLIENT_ID=your_client_id
 
 ```bash
 # Run health check in a running container
-docker exec propsdb /app/healthcheck
+docker exec propsdb-api /app/healthcheck
 
 # Run health check as a one-off command
 docker run --rm \
@@ -44,29 +44,21 @@ docker run --rm \
   /app/healthcheck
 ```
 
-### 3. Docker Compose
-
-```bash
-# Check health of running service
-docker-compose exec propsdb /app/healthcheck
-
-# Or check from host
-docker exec propsdb-propsdb-1 /app/healthcheck
-```
-
 ## Health Check Output
 
 ### Healthy System
 
-```json
+```
+Connected to mariadb database: jam_build
+Health check passed - all systems operational
 {
   "status": "healthy",
   "database": "ok",
   "authorizer": "ok",
   "details": {
-    "authorizer_url": "http://localhost:8080",
+    "authorizer_url": "http://host.docker.internal:8080",
     "database_name": "jam_build",
-    "database_type": "mysql"
+    "database_type": "mariadb"
   }
 }
 ```

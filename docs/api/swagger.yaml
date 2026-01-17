@@ -35,13 +35,13 @@ info:
   contact:
     email: info@localnerve.com
     name: API Support
-    url: https://github.com/localnerve/propsdb
+    url: https://github.com/localnerve/jam-build-propsdb
   description: Go Fiber data service with multi-database support
   license:
     name: AGPL-3.0
     url: https://www.gnu.org/licenses/agpl-3.0.html
   termsOfService: http://swagger.io/terms/
-  title: PropsDB API
+  title: Jam-Build-PropsDB API
   version: 1.0.0
 paths:
   /data/app:

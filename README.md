@@ -1,6 +1,6 @@
-# propsdb - Go Fiber Data Service
+# jam-build-propsdb - Go Fiber Data Service
 
-A high-performance data service built with Go and Fiber, serving as a drop-in replacement for the Node.js Express data service. Supports all GORM-compatible databases including MySQL, PostgreSQL, SQLite, and SQL Server.
+A high-performance data service built with Go and Fiber, serving as a drop-in replacement for the Node.js Express data service in the [Jam Build](https://github.com/localnerve/jam-build) project. Supports all GORM-compatible databases including MySQL, PostgreSQL, SQLite, and SQL Server.
 
 ## Features
 
@@ -10,55 +10,41 @@ A high-performance data service built with Go and Fiber, serving as a drop-in re
 - 📦 **API Compatibility**: Drop-in replacement for the Node.js Express service
 - 🔄 **Version Control**: Optimistic locking with `E_VERSION` conflict detection
 - 🐳 **Docker Ready**: Multi-stage Dockerfile for containerized deployments
-- 🧪 **Testable**: Designed for integration testing with testcontainers
+- 🧪 **Testable**: Designed for unit, integration, and e2e testing with testcontainers
 
 ## Quick Start
 
 ### Prerequisites
 
 - Go 1.21 or higher
-- Database (MySQL, PostgreSQL, SQLite, or SQL Server)
-- Authorizer instance running
+- GNU Make 4.4.1
+- Docker Desktop
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/localnerve/propsdb.git
-cd propsdb
+git clone https://github.com/localnerve/jam-build-propsdb.git
+cd jam-build-propsdb
 ```
 
-2. Copy the example environment file:
+2. Install dependencies:
 ```bash
-cp .env.example .env
+make deps
 ```
 
-3. Configure your environment variables in `.env`:
-```env
-PORT=3000
-DB_TYPE=mysql  # or mariadb, postgres, sqlite, sqlserver, mssql
-DB_HOST=localhost
-DB_PORT=3306
-DB_APP_DATABASE=jam_build
-DB_APP_USER=jbadmin
-DB_APP_PASSWORD=your_password
-DB_USER=jbuser
-DB_PASSWORD=your_password
-AUTHZ_URL=http://localhost:8080
-AUTHZ_CLIENT_ID=your_client_id
-```
-
-4. Install dependencies:
+3. Build and run the service suite:
 ```bash
-go mod download
-```
-
-5. Run the service:
-```bash
-go run cmd/server/main.go
+make docker-compose-up
 ```
 
 The service will start on `http://localhost:3000`.
+
+#### All Ports Used
+
+* Service ports: 3000 (api), 3306 (database), 6379 (cache), 8080 (authorizer)
+* Monitoring ports: 3001 (grafana), 9090 (prometheus)
+
 
 ## Database Configuration
 
@@ -73,16 +59,18 @@ Configure the database type using the `DB_TYPE` environment variable:
 
 ### Migrations
 
-SQL migration files are provided for each database type in the `migrations/` directory:
+SQL migration files are provided for each database type in the `data/migrations/` directory:
 
-- `migrations/mysql/` - MySQL/MariaDB migrations
-- `migrations/postgres/` - PostgreSQL migrations
-- `migrations/sqlite/` - SQLite migrations
-- `migrations/sqlserver/` - SQL Server migrations
+- `data/migrations/mysql/` - MySQL/MariaDB migrations
+- `data/migrations/postgres/` - PostgreSQL migrations
+- `data/migrations/sqlite/` - SQLite migrations
+- `data/migrations/sqlserver/` - SQL Server migrations
 
 The service also supports GORM AutoMigrate as a fallback.
 
 ## API Endpoints
+
+Swagger documentation is available at `http://localhost:3000/swagger/`.
 
 ### Application Data (Public GET, Admin POST/DELETE)
 
@@ -116,135 +104,63 @@ Supported versions:
 
 ## Docker Deployment
 
-### Build Docker Image
+### Full Service Stack Docker Compose
+
+This will start the API service, database, cache, and authorizer.
 
 ```bash
-docker build -t propsdb:latest .
+make docker-compose-up
 ```
 
-### Run with Docker
+### Observability Stack Docker Compose
+
+This will start the observability services for the API service.
 
 ```bash
-docker run -d \
-  --name propsdb \
-  -p 3000:3000 \
-  -e DB_TYPE=mysql \
-  -e DB_HOST=host.docker.internal \
-  -e DB_PORT=3306 \
-  -e DB_APP_DATABASE=jam_build \
-  -e DB_APP_USER=jbadmin \
-  -e DB_APP_PASSWORD=password \
-  -e DB_USER=jbuser \
-  -e DB_PASSWORD=password \
-  -e AUTHZ_URL=http://host.docker.internal:8080 \
-  -e AUTHZ_CLIENT_ID=your_client_id \
-  propsdb:latest
+make obs-up
 ```
 
-### Docker Compose (Example)
-
-```yaml
-
-services:
-  propsdb:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DB_TYPE=mysql
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_APP_DATABASE=jam_build # App Database
-      - DB_APP_USER=jbadmin # App Username
-      - DB_APP_PASSWORD=password # App Password
-      - DB_USER=jbuser # User Username
-      - DB_PASSWORD=password # User Password
-      - AUTHZ_URL=http://authorizer:8080 # Authorizer URL
-      - AUTHZ_CLIENT_ID=00000000-0000-0000-0000-000000000000 # Authorizer Client ID
-    depends_on:
-      - mysql
-      - authorizer
-
-  mysql:
-    image: mariadb:latest
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=jam_build
-    volumes:
-      - mysql_data:/var/lib/mysql
-
-  authorizer:
-    image: lakhansamani/authorizer:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - DATABASE_TYPE=mysql
-      - DATABASE_URL=root:rootpassword@tcp(mysql:3306)/authorizer
-      - PORT=8080
-      - ADMIN_SECRET=deadbeefcafebabe01
-      - DATABASE_NAME=authorizer
-      - CLIENT_ID=00000000-0000-0000-0000-000000000000
-      - ORGANIZATION_NAME=your_organization_name
-      - ORGANIZATION_LOGO=url_to_your_organization_logo
-      - ROLES=user,admin
-      - REDIS_URL=redis://cache:6379
-
-volumes:
-  mysql_data:
-```
+For information on Prometheus metrics and Grafana dashboards, see [OBSERVABILITY.md](docs/OBSERVABILITY.md).
 
 ## Development
-
-### Project Structure
-
-For information on Prometheus metrics and Grafana dashboards, see [OBSERVABILITY.md](file:///Users/agrant/projects/propsdb/docs/OBSERVABILITY.md).
-
-## Project Structure
-
-```
-propsdb/
-├── cmd/
-│   └── server/
-│       └── main.go                 # Application entry point
-├── docs/                           # Documentation
-│   ├── OBSERVABILITY.md            # Observability details
-│   ├── TESTING.md                  # Testing guide
-│   ├── COVERAGE.md                 # Coverage guide
-│   ├── HEALTHCHECK.md              # Health check details
-│   └── api/                        # Swagger/OpenAPI docs
-├── internal/
-│   ├── config/                     # Configuration
-│   ├── database/                   # Database layer
-│   ├── models/                     # GORM models
-│   ├── middleware/                 # Middleware (auth, version)
-│   ├── handlers/                   # API handlers
-│   ├── services/                   # Business logic
-│   └── utils/                      # Utilities
-├── migrations/                     # SQL migrations
-├── tests/
-│   ├── e2e/                        # End-to-end tests
-│   ├── integration/                # Integration tests
-│   └── unit/                       # Unit tests
-├── coverage/                       # Coverage output
-├── Dockerfile                      # Docker configuration
-└── Makefile                        # Build system
-```
 
 ### Running Tests
 
 ```bash
 # Unit tests
-go test ./... -v
+make test
 
 # Integration tests (requires Docker)
-go test ./tests/integration -v -tags=integration
+make test-integration
+
+# End-to-end service health tests (requires Docker)
+make test-e2e
+
+# Full stack end-to-end tests (requires Docker)
+make test-e2e-js # Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
+
+# Full stack end-to-end tests with coverage (requires Docker)
+make test-e2e-js-cover # Params: REBUILD=1 (rebuild orchestrator), HOST_DEBUG=1 (debug host)
 ```
+
+Many more tests are available in the Makefile, see the [testing documentation](docs/TESTING.md) for full details.
 
 ### Building
 
 ```bash
-go build -o propsdb ./cmd/server
-./propsdb
+
+# build the api service
+make build 
+
+# build the healthcheck binary
+make build-healthcheck
+
+# build the test orchestrator binary
+make build-orchestrator
+
+# build all
+make build-all
+
 ```
 
 ## Authentication
@@ -266,7 +182,7 @@ All mutation operations (POST, DELETE) use optimistic locking:
 
 ## License
 
-Copyright (c) 2025 Alex Grant <info@localnerve.com> (https://www.localnerve.com), LocalNerve LLC
+Copyright (c) 2026 Alex Grant <info@localnerve.com> (https://www.localnerve.com), LocalNerve LLC
 
 This project is licensed under the GNU Affero General Public License v3.0 or later.
 
@@ -275,7 +191,7 @@ This project is licensed under the GNU Affero General Public License v3.0 or lat
 This service is a drop-in replacement for the Node.js Express data service with the following improvements:
 
 - **Performance**: Go's compiled nature provides better performance
-- **Database Support**: Expanded from MySQL/PostgreSQL to all GORM-supported databases
+- **Database Support**: Expanded from MariaDB to all GORM-supported databases
 - **Simplified Deployment**: No stored procedures needed - all logic in application code
 - **Type Safety**: Strong typing with Go
 - **Containerization**: Production-ready Docker support

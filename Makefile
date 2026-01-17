@@ -1,10 +1,10 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs obs-up obs-down obs-logs swagger swagger-serve lint fmt vet check install-tools install dev test-e2e-js-report
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug build-all clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-cache-clean test-all test-coverage coverage-report run run-testcontainers docker-build docker-run docker-compose-up docker-compose-down docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools install dev test-e2e-js-report
 
 # Variables
-BINARY_NAME=propsdb
+BINARY_NAME=jam-build-propsdb
 HEALTHCHECK_BINARY=healthcheck
 TESTCONTAINERS_BINARY=testcontainers
-DOCKER_IMAGE=propsdb
+DOCKER_IMAGE=jam-build-propsdb
 DOCKER_TAG=latest
 COVERAGE_DIR=coverage
 COVERAGE_FILE=$(COVERAGE_DIR)/coverage.out
@@ -14,6 +14,7 @@ SWAGGER_DIR=docs/api
 
 # Docker parameters
 ENV_FILE=.env.dev
+ENV_DOCKER_FILE=.env.docker
 
 # Commands
 GOCMD=go
@@ -49,9 +50,9 @@ build-testcontainers: ## Build the testcontainers binary
 	$(GOBUILD) -o $(TESTCONTAINERS_BINARY) ./cmd/testcontainers
 	@echo "Build complete: $(TESTCONTAINERS_BINARY)"
 
-build-testcontainers-debug: ## Prepare for a new propsdb-test image build
+build-testcontainers-debug: ## Prepare for a new jam-build-propsdb-test image build
 	@echo "Rebuilding $(TESTCONTAINERS_BINARY) for debug..."
-	docker rmi propsdb-test:latest || true
+	docker rmi jam-build-propsdb-test:latest || true
 	$(MAKE) build-testcontainers
 
 build-all: build build-healthcheck build-testcontainers ## Build all binaries
@@ -62,6 +63,7 @@ clean: ## Remove build artifacts
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME) $(HEALTHCHECK_BINARY) $(TESTCONTAINERS_BINARY)
+	rm -f $(ENV_DOCKER_FILE)
 	rm -rf $(COVERAGE_DIR)
 	@echo "Clean complete"
 
@@ -89,9 +91,9 @@ test-e2e-debug: ## Start debugger for E2E go tests, attach with 'dlv connect :23
 	@echo "Running E2E tests in debug mode..."
 	$(DLVTEST) ./tests/e2e/... --headless --listen=:2345 --api-version=2 --log
 
-test-e2e-rebuild: ## Run E2E go tests with forced rebuild of propsdb-test image
-	@echo "Forcing rebuild of propsdb-test images..."
-	docker rmi propsdb-test:latest || true
+test-e2e-rebuild: ## Run E2E go tests with forced rebuild of jam-build-propsdb-test image
+	@echo "Forcing rebuild of jam-build-propsdb-test images..."
+	docker rmi jam-build-propsdb-test:latest || true
 	@$(MAKE) test-e2e
 
 test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
@@ -272,26 +274,30 @@ run-testcontainers: build-testcontainers ## Build and run the testcontainers bin
 	@echo "Running testcontainers binary..."
 	$(GODOTENV) ./$(TESTCONTAINERS_BINARY)
 
+$(ENV_DOCKER_FILE): $(ENV_FILE)
+	@echo "Generating $(ENV_DOCKER_FILE) from $(ENV_FILE)..."
+	@sed 's/localhost/host.docker.internal/g' $(ENV_FILE) > $(ENV_DOCKER_FILE)
+
 docker-build: ## Build Docker image
 	@echo "Building Docker image $(DOCKER_IMAGE):$(DOCKER_TAG)..."
 	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 	@echo "Docker image built successfully"
 
-docker-run: ## Run Docker container
+docker-run: $(ENV_DOCKER_FILE) ## Run api as individual Docker container
 	@echo "Running Docker container..."
-	docker run -p 3000:3000 --env-file $(ENV_FILE) $(DOCKER_IMAGE):$(DOCKER_TAG)
+	docker run -p 3000:3000 --env-file $(ENV_DOCKER_FILE) $(DOCKER_IMAGE):$(DOCKER_TAG)
 
-docker-compose-up: ## Start all services with Docker Compose
+docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose
 	@echo "Starting Docker Compose services..."
-	docker-compose --env-file $(ENV_FILE) up -d
+	docker-compose --env-file $(ENV_DOCKER_FILE) up -d
 	@echo "Services started. Use 'make docker-compose-logs' to view logs"
 
-docker-compose-down: ## Stop all Docker Compose services
+docker-compose-down: $(ENV_DOCKER_FILE) ## Stop all Docker Compose services
 	@echo "Stopping Docker Compose services..."
-	docker-compose --env-file $(ENV_FILE) down
+	docker-compose --env-file $(ENV_DOCKER_FILE) down
 
-docker-compose-logs: ## View Docker Compose logs
-	docker-compose --env-file $(ENV_FILE) logs -f
+docker-compose-logs: $(ENV_DOCKER_FILE) ## View Docker Compose logs
+	docker-compose --env-file $(ENV_DOCKER_FILE) logs -f
 
 obs-up: ## Start observability services
 	@echo "Starting observability services..."
@@ -313,10 +319,6 @@ swagger: ## Generate OpenAPI/Swagger documentation
 	fi
 	@$$(go env GOPATH)/bin/swag init -g cmd/server/main.go -o $(SWAGGER_DIR)
 	@echo "Swagger documentation generated in $(SWAGGER_DIR)"
-
-swagger-serve: swagger ## Generate and serve Swagger UI
-	@echo "Swagger documentation available at http://localhost:3000/swagger/index.html"
-	@echo "Run 'make run' to start the server"
 
 lint: ## Run linter
 	@echo "Running linter..."

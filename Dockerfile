@@ -37,13 +37,13 @@ COPY . .
 # Conditionally build with debug or coverage flags
 RUN if [ "$DEBUG" = "true" ]; then \
   echo "Building DEBUG binary"; \
-  CGO_ENABLED=0 GOOS=linux go build -gcflags="all=-N -l" -o propsdb ./cmd/server; \
+  CGO_ENABLED=0 GOOS=linux go build -gcflags="all=-N -l" -o jam-build-propsdb ./cmd/server; \
 elif [ "$COVER" = "true" ]; then \
   echo "Building COVER binary"; \
-  CGO_ENABLED=0 GOOS=linux go build -cover -coverpkg=./... -covermode=atomic -o propsdb ./cmd/server; \
+  CGO_ENABLED=0 GOOS=linux go build -cover -coverpkg=./... -covermode=atomic -o jam-build-propsdb ./cmd/server; \
 else \
   echo "Building PRODUCTION binary"; \
-  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o propsdb ./cmd/server; \
+  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o jam-build-propsdb ./cmd/server; \
 fi
 
 # Build the healthcheck application
@@ -65,7 +65,7 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binaries from builder
-COPY --from=builder /app/propsdb .
+COPY --from=builder /app/jam-build-propsdb .
 COPY --from=builder /app/healthcheck .
 # Copy dlv if it was built
 COPY --from=builder /go/bin/dlv* /usr/local/bin/
@@ -87,5 +87,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD ["/app/healthcheck"]
 
 # Run the application
-CMD ["./propsdb"]
+CMD ["./jam-build-propsdb"]
 

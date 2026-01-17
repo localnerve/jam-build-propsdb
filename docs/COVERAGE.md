@@ -1,8 +1,8 @@
-# Code Coverage Guide
+# Testing Guide
 
-## Understanding Coverage
+## Understanding Testing
 
-The PropsDB project has multiple test levels:
+The jam-build-propsdb project has multiple test levels:
 
 ### 1. Unit Tests (`tests/unit/`)
 - **Purpose**: Test handlers in isolation with mocked dependencies
@@ -16,11 +16,18 @@ The PropsDB project has multiple test levels:
 - **Speed**: Medium (testcontainers)
 - **Run**: `make test-integration`
 
-### 3. End-to-End Tests (`tests/e2e/`)
-- **Purpose**: Test entire application stack
-- **Coverage**: Full application including main.go, middleware, all internal packages
+### 3. End-to-End Service Tests (`tests/e2e/`)
+- **Purpose**: Test the health of the service stack
+- **Coverage**: Not applicable
 - **Speed**: Slow (builds Docker image, starts full stack)
 - **Run**: `make test-e2e`
+
+### 4. End-to-End Full Application Tests (`tests/e2e-js/`)
+- **Purpose**: Test full application service stack from all browsers
+- **Coverage**: Full application including main.go, middleware, all internal packages
+- **Speed**: Slow (builds Docker image, starts full stack)
+- **Run**: `make test-e2e-js` for test-only or `make test-e2e-js-cover` for coverage
+- **Parameters**: `make test-e2e-js DEBUG=0` (no debug), `make test-e2e-js DEBUG=1` (debug), `make test-e2e-js DEBUG=2` (debug, rebuild), `make test-e2e-js REBUILD=1` (rebuild), `make test-e2e-js HOST_DEBUG=1` (debug host)
 
 ## Current Coverage Limitations
 

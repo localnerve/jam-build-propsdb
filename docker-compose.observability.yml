@@ -1,9 +1,9 @@
-name: 'propsdb-observability'
+name: 'jam-build-propsdb-observability'
 services:
   # Prometheus
   prometheus:
     image: prom/prometheus:latest
-    container_name: propsdb-prometheus
+    container_name: jam-build-propsdb-prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -40,7 +40,7 @@ services:
 networks:
   propsdb-network:
     external: true
-    name: propsdb_propsdb-network
+    name: jam-build-propsdb_propsdb-network
 
 volumes:
   prometheus_data:

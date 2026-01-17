@@ -1,8 +1,8 @@
-# PropsDB - Observability Guide
+# jam-build-propsdb - Observability Guide
 
 ## Overview
 
-PropsDB includes comprehensive observability with Prometheus metrics and Grafana dashboards for monitoring application performance, database health, and API usage.
+jam-build-propsdb includes comprehensive observability with Prometheus metrics and Grafana dashboards for monitoring application performance, database health, and API usage.
 
 ## Components
 
@@ -24,29 +24,19 @@ Pre-configured dashboards for visualizing:
 
 ## Quick Start
 
-### Using Docker Compose
-
 ```bash
-# Start all services including observability stack
-docker-compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+# Start the jam-build-propsdb services (api, authorizer, database, and cache)
+make docker-compose-up
 
-# Access services
-# PropsDB API: http://localhost:3000
-# Prometheus: http://localhost:9090
-# Grafana: http://localhost:3001 (admin/admin)
+# Start the observability services (prometheus and grafana)
+make obs-up
 ```
 
-### Standalone Setup
-
-1. **Start PropsDB**:
-```bash
-make run
-```
-
-2. **View Metrics**:
-```bash
-curl http://localhost:3000/metrics
-```
+### Service endpoints
+* Authorizer: http://localhost:8080
+* Prometheus: http://localhost:9090
+* Grafana: http://localhost:3001 (admin/admin)
+* http://localhost:3000/metrics
 
 ## Prometheus Configuration
 

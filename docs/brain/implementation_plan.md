@@ -17,7 +17,7 @@ This plan outlines the creation of a Go Fiber-based data service that serves as 
 
 > [!NOTE]
 > **Decisions Confirmed**:
-> - **Project Location**: `/Users/agrant/projects/propsdb`
+> - **Project Location**: `/Users/agrant/projects/jam-build-propsdb`
 > - **Authorizer SDK**: Using `authorizer-go` from https://github.com/AuthorizerDev/Authorizer-go
 > - **Database Support**: All GORM-compatible databases via `DB_TYPE` environment variable
 > - **Containerization**: Dockerfile included for Docker deployment
@@ -26,7 +26,7 @@ This plan outlines the creation of a Go Fiber-based data service that serves as 
 > **Reorganization of Documentation**: All documentation files (TESTING.md, OBSERVABILITY.md, etc.) have been moved to the `docs/` directory. Swagger docs are in `docs/api/` and coverage output is in `coverage/`.
 
 > [!CAUTION]
-> **Project Move**: The project will be moved from `/Users/agrant/projects/propsdb` to `/Users/agrant/projects/propsdb`. After the move, you may need to re-open the workspace or update your IDE settings if it does not follow the directory rename.
+> **Project Move**: The project will be moved from `/Users/agrant/projects/jam-build-propsdb` to `/Users/agrant/projects/jam-build-propsdb`. After the move, you may need to re-open the workspace or update your IDE settings if it does not follow the directory rename.
 
 > [!WARNING]
 > **Breaking Change - Stored Procedures**: The MariaDB stored procedures will be replaced with Go code. This means:
@@ -84,7 +84,7 @@ propsdb/
 
 ### Core Components
 
-#### [NEW] [main.go](file:///Users/agrant/projects/propsdb/cmd/server/main.go)
+#### [NEW] [main.go](file:///Users/agrant/projects/jam-build-propsdb/cmd/server/main.go)
 
 Application entry point that:
 - Loads configuration from environment variables
@@ -103,7 +103,7 @@ Application entry point that:
 > [!NOTE]
 > **API Versioning**: Yes, this will use the same `X-Api-Version` header approach as the Node.js service. Clients can send `X-Api-Version: 1.0.0` or `X-Api-Version: 1.0` and the service will route to the appropriate version handler. If no header is provided, it defaults to version 1.0.0.
 
-#### [NEW] [config.go](file:///Users/agrant/projects/propsdb/internal/config/config.go)
+#### [NEW] [config.go](file:///Users/agrant/projects/jam-build-propsdb/internal/config/config.go)
 
 Configuration structure matching Node.js environment variables:
 - `DB_TYPE` - Database type: "mysql", "postgres", "sqlite", "sqlserver", etc. (any GORM-supported database)
@@ -116,7 +116,7 @@ Configuration structure matching Node.js environment variables:
 
 ### Database Layer
 
-#### [NEW] [connection.go](file:///Users/agrant/projects/propsdb/internal/database/connection.go)
+#### [NEW] [connection.go](file:///Users/agrant/projects/jam-build-propsdb/internal/database/connection.go)
 
 Database connection management with dynamic driver selection based on `DB_TYPE`:
 - MySQL/MariaDB support using `gorm.io/driver/mysql`
@@ -128,7 +128,7 @@ Database connection management with dynamic driver selection based on `DB_TYPE`:
 - Health check/ping functionality
 - Graceful shutdown support
 
-#### [NEW] [application.go](file:///Users/agrant/projects/propsdb/internal/models/application.go)
+#### [NEW] [application.go](file:///Users/agrant/projects/jam-build-propsdb/internal/models/application.go)
 
 GORM models for application data:
 ```go
@@ -158,11 +158,11 @@ type ApplicationProperty struct {
 }
 ```
 
-#### [NEW] [user.go](file:///Users/agrant/projects/propsdb/internal/models/user.go)
+#### [NEW] [user.go](file:///Users/agrant/projects/jam-build-propsdb/internal/models/user.go)
 
 GORM models for user data (similar structure to application models but with `UserID` foreign key).
 
-#### [NEW] [migrations/](file:///Users/agrant/projects/propsdb/migrations/)
+#### [NEW] [migrations/](file:///Users/agrant/projects/jam-build-propsdb/migrations/)
 
 SQL migration files for all supported databases:
 - MySQL/MariaDB: Based on existing `mariadb-ddl-tables.sql` (without stored procedures)
@@ -175,7 +175,7 @@ SQL migration files for all supported databases:
 
 ### Middleware
 
-#### [NEW] [version.go](file:///Users/agrant/projects/propsdb/internal/middleware/version.go)
+#### [NEW] [version.go](file:///Users/agrant/projects/jam-build-propsdb/internal/middleware/version.go)
 
 API versioning middleware:
 - Parse `X-Api-Version` header from request
@@ -188,7 +188,7 @@ API versioning middleware:
 
 ### Authentication & Authorization
 
-#### [NEW] [auth.go](file:///Users/agrant/projects/propsdb/internal/middleware/auth.go)
+#### [NEW] [auth.go](file:///Users/agrant/projects/jam-build-propsdb/internal/middleware/auth.go)
 
 Authorization middleware implementing:
 - `AuthAdmin()` - Validates admin role, sets `c.Locals("user", userData)`
@@ -197,7 +197,7 @@ Authorization middleware implementing:
 - Integration with Authorizer service
 - Error handling with 403 responses
 
-#### [NEW] [auth_service.go](file:///Users/agrant/projects/propsdb/internal/services/auth_service.go)
+#### [NEW] [auth_service.go](file:///Users/agrant/projects/jam-build-propsdb/internal/services/auth_service.go)
 
 Authorizer service client using `authorizer-go` SDK:
 - Initialize Authorizer client from https://github.com/AuthorizerDev/Authorizer-go
@@ -209,7 +209,7 @@ Authorizer service client using `authorizer-go` SDK:
 
 ### API Handlers
 
-#### [NEW] [app_data.go](file:///Users/agrant/projects/propsdb/internal/handlers/app_data.go)
+#### [NEW] [app_data.go](file:///Users/agrant/projects/jam-build-propsdb/internal/handlers/app_data.go)
 
 Handlers for application data endpoints:
 - `GetAppProperties(c *fiber.Ctx)` - GET `/api/data/app/:document/:collection`
@@ -219,7 +219,7 @@ Handlers for application data endpoints:
 - `DeleteAppCollection(c *fiber.Ctx)` - DELETE `/api/data/app/:document/:collection` (admin only)
 - `DeleteAppProperties(c *fiber.Ctx)` - DELETE `/api/data/app/:document` (admin only)
 
-#### [NEW] [user_data.go](file:///Users/agrant/projects/propsdb/internal/handlers/user_data.go)
+#### [NEW] [user_data.go](file:///Users/agrant/projects/jam-build-propsdb/internal/handlers/user_data.go)
 
 Handlers for user data endpoints (similar to app_data.go but with user context):
 - All routes require user authentication
@@ -229,7 +229,7 @@ Handlers for user data endpoints (similar to app_data.go but with user context):
 
 ### Business Logic
 
-#### [NEW] [data_service.go](file:///Users/agrant/projects/propsdb/internal/services/data_service.go)
+#### [NEW] [data_service.go](file:///Users/agrant/projects/jam-build-propsdb/internal/services/data_service.go)
 
 Core business logic migrated from stored procedures:
 
@@ -260,7 +260,7 @@ Core business logic migrated from stored procedures:
 
 ### Utilities
 
-#### [NEW] [response.go](file:///Users/agrant/projects/propsdb/internal/utils/response.go)
+#### [NEW] [response.go](file:///Users/agrant/projects/jam-build-propsdb/internal/utils/response.go)
 
 Response formatting utilities:
 - `SuccessResponse(data, status)` - Standard success response
@@ -268,7 +268,7 @@ Response formatting utilities:
 - `VersionErrorResponse()` - Specific E_VERSION error format
 - `NotFoundResponse(message)` - 404 response
 
-#### [NEW] [version.go](file:///Users/agrant/projects/propsdb/internal/utils/version.go)
+#### [NEW] [version.go](file:///Users/agrant/projects/jam-build-propsdb/internal/utils/version.go)
 
 Version management utilities:
 - Version conflict detection
@@ -278,7 +278,7 @@ Version management utilities:
 
 ### Configuration Files
 
-#### [NEW] [go.mod](file:///Users/agrant/projects/propsdb/go.mod)
+#### [NEW] [go.mod](file:///Users/agrant/projects/jam-build-propsdb/go.mod)
 
 Dependencies:
 - `github.com/gofiber/fiber/v2` - Web framework
@@ -291,11 +291,11 @@ Dependencies:
 - `github.com/authorizerdev/authorizer-go` - Authorizer SDK
 - Testing libraries (testcontainers, etc.)
 
-#### [NEW] [.env.example](file:///Users/agrant/projects/propsdb/.env.example)
+#### [NEW] [.env.example](file:///Users/agrant/projects/jam-build-propsdb/.env.example)
 
 Example environment configuration with all required variables.
 
-#### [NEW] [Dockerfile](file:///Users/agrant/projects/propsdb/Dockerfile)
+#### [NEW] [Dockerfile](file:///Users/agrant/projects/jam-build-propsdb/Dockerfile)
 
 Multi-stage Docker build:
 - Stage 1: Build Go binary with all dependencies
@@ -304,12 +304,12 @@ Multi-stage Docker build:
 - Health check endpoint
 - Non-root user for security
 
-#### [NEW] [.dockerignore](file:///Users/agrant/projects/propsdb/.dockerignore)
+#### [NEW] [.dockerignore](file:///Users/agrant/projects/jam-build-propsdb/.dockerignore)
 
 Exclude unnecessary files from Docker context:
 - `.git/`, `tests/`, `.env`, etc.
 
-#### [NEW] [README.md](file:///Users/agrant/projects/propsdb/README.md)
+#### [NEW] [README.md](file:///Users/agrant/projects/jam-build-propsdb/README.md)
 
 Documentation covering:
 - Setup instructions
