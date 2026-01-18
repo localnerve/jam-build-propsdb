@@ -64,7 +64,7 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
       - ./data/initdb/${DB_TYPE}:/docker-entrypoint-initdb.d
-      # - ./data/migrations/${DB_TYPE}:/docker-entrypoint-migrations.d
+      - ./data/migrations/${DB_TYPE}:/docker-entrypoint-migrations.d
     networks:
       - propsdb-network
     restart: unless-stopped
