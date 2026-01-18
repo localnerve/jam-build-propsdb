@@ -54,3 +54,6 @@ test-results/
 # Temporary files
 tmp/
 temp/
+
+# Private files
+/private
