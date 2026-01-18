@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS $AUTHZ_DATABASE.authorizer_users (id CHAR(36) NOT NUL
 EOF
 )"
 
-echo "$SQL" | mariadb -u root --password="$MYSQL_ROOT_PASSWORD" 
+echo "$SQL" | mysql -u root --password="$MYSQL_ROOT_PASSWORD" 
