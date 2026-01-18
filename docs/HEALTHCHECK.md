@@ -2,46 +2,13 @@
 
 ## Running Health Check
 
-The health check utility can be run in several ways:
+The health check utility can be run in the container.
 
-### 1. Standalone Binary
-
-```bash
-# Build the healthcheck binary
-make build-healthcheck
-
-# Run with environment variables
-export DB_TYPE=mysql
-export DB_HOST=localhost
-export DB_PORT=3306
-export DB_APP_DATABASE=jam_build
-export DB_APP_USER=jbadmin
-export DB_APP_PASSWORD=password
-export AUTHZ_URL=http://localhost:8080
-export AUTHZ_CLIENT_ID=your_client_id
-
-./healthcheck
-```
-
-### 2. Docker Run Command
+### Docker Run Command
 
 ```bash
 # Run health check in a running container
 docker exec propsdb-api /app/healthcheck
-
-# Run health check as a one-off command
-docker run --rm \
-  -e DB_TYPE=mysql \
-  -e DB_HOST=mariadb \
-  -e DB_PORT=3306 \
-  -e DB_APP_DATABASE=jam_build \
-  -e DB_APP_USER=jbadmin \
-  -e DB_APP_PASSWORD=password \
-  -e AUTHZ_URL=http://authorizer:8080 \
-  -e AUTHZ_CLIENT_ID=your_client_id \
-  --network propsdb-network \
-  propsdb:latest \
-  /app/healthcheck
 ```
 
 ## Health Check Output
@@ -98,7 +65,7 @@ View health status:
 docker ps
 # Look for (healthy) or (unhealthy) in STATUS column
 
-docker inspect propsdb | jq '.[0].State.Health'
+docker inspect propsdb-api | jq '.[0].State.Health'
 ```
 
 ### Kubernetes Liveness/Readiness Probes
@@ -155,20 +122,20 @@ exit $?
 
 ```bash
 # Check database connectivity
-docker exec propsdb /app/healthcheck | jq '.database'
+docker exec propsdb-api /app/healthcheck | jq '.database'
 
 # View detailed error
-docker exec propsdb /app/healthcheck | jq '.details.database_ping_error'
+docker exec propsdb-api /app/healthcheck | jq '.details.database_ping_error'
 ```
 
 ### Authorizer Connection Issues
 
 ```bash
 # Check Authorizer connectivity
-docker exec propsdb /app/healthcheck | jq '.authorizer'
+docker exec propsdb-api /app/healthcheck | jq '.authorizer'
 
 # View detailed error
-docker exec propsdb /app/healthcheck | jq '.details.authorizer_error'
+docker exec propsdb-api /app/healthcheck | jq '.details.authorizer_error'
 ```
 
 ### Debug Mode
@@ -176,7 +143,7 @@ docker exec propsdb /app/healthcheck | jq '.details.authorizer_error'
 For more verbose output, check the container logs:
 
 ```bash
-docker logs propsdb
+docker logs propsdb-api
 ```
 
 The health check logs its results to stdout/stderr with timestamps.

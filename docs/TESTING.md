@@ -1,124 +1,93 @@
-# PropsDB - Testing Guide
+# Jam-Build-PropsDB - Testing Guide
 
-## Test Issues and Solutions
+This project follows a 4-layered testing strategy to ensure reliability across unit, integration, and end-to-end scenarios. All tests run against real or in-memory databases using standard Go tools, `testcontainers-go`, and Playwright.
 
-### GORM Junction Table Column Names
+## 1. Testing Strategy
 
-**Issue**: GORM AutoMigrate creates junction table columns with full model name prefixes, which differ from the MariaDB migration schema.
+### 🟢 Layer 1: Unit Tests
+- **Package**: `tests/unit/`
+- **Scope**: HTTP Handlers and request/response logic.
+- **Database**: In-memory SQLite.
+- **Run**: `make test-unit`
+- **Speed**: Very Fast (< 1s).
 
-**GORM Column Names**:
-- `application_document_document_id` (not `document_id`)
-- `application_collection_collection_id` (not `collection_id`)
-- `application_property_property_id` (not `property_id`)
+### 🔵 Layer 2: Integration Tests
+- **Package**: `tests/integration/`
+- **Scope**: Business logic in `internal/services/` and database interactions.
+- **Database**: Real MariaDB and PostgreSQL containers via `testcontainers-go`.
+- **Run**: `make test-integration`
+- **Speed**: Medium (15-30s).
 
-**Solution**: All JOIN queries have been updated to use GORM's actual column names for compatibility with both SQLite (unit tests) and production databases.
+### 🟠 Layer 3: Go End-to-End (E2E)
+- **Package**: `tests/e2e/`
+- **Scope**: Service smoke tests, health checks, Swagger UI, and Prometheus metrics.
+- **Database**: Full stack orchestration.
+- **Run**: `make test-e2e`
+- **Speed**: Slow (30-60s).
 
-### Running Tests
+### 🔴 Layer 4: Playwright End-to-End (JS)
+- **Package**: `test-e2e-js/`
+- **Scope**: Full application functional tests from a client perspective.
+- **Orchestration**: Custom Go orchestrator (`cmd/testcontainers`) manages the life-cycle of the API, Database, Cache, and Authorizer.
+- **Run**: `make test-e2e-js`
+- **Speed**: Slowest (1-2m).
 
-#### Unit Tests
+---
+
+## 2. Common Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make test-unit` | Run unit tests only. |
+| `make test-integration` | Run integration tests (requires Docker). |
+| `make test-e2e` | Run Go-based smoke tests (requires Docker). |
+| `make test-e2e-js` | Run Playwright E2E tests (requires Docker). |
+| `make test-e2e-js-cover` | Run Playwright E2E tests and generate coverage report (requires Docker). |
+| `make test-coverage` | Run all Go tests and generate coverage report. |
+| `make test-all` | Run the unit, integration, and Go E2E tests (requires Docker). |
+
+### Parameters
+Many targets support parameters for advanced usage:
+- `test-e2e-js`: Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
+- `test-e2e-js-cover`: Params: REBUILD=1 (rebuild orchestrator), HOST_DEBUG=1 (debug host), OPEN=1 (optional)
+- `test-coverage`: Params: OPEN=1 (optional)
+
+---
+
+## 3. Database Testing
+
+Integration tests use `testcontainers-go` to spin up ephemeral database instances. This ensures:
+1. **Parallelism**: Multiple test runs don't interfere with each other.
+2. **Real Logic**: We test against actual SQL execution, not mocks or stubs.
+3. **Multi-DB Support**: We verify compatibility across MariaDB and PostgreSQL automatically.
+
+### Prerequisites for Integration/E2E
+- Docker Desktop must be running.
+- Port permissions (the tests will find available ports automatically).
+
+---
+
+## 4. Debugging Tests
+
+### Go Tests (Unit/Integration)
+You can use standard Go flags or attach with Delve:
 ```bash
-# Run all unit tests (fast, uses SQLite in-memory)
-make test-unit
-
-# Run specific test
-go test -v ./tests/unit -run TestGetAppProperties
+go test -v ./tests/unit/... -run TestGetAppProperties
 ```
 
-**Status**: ✅ All unit tests passing (4/4)
+### Playwright E2E
+To debug the full stack:
+1. Run `make test-e2e-js DEBUG=2`.
+2. The orchestrator will start the containers and pause.
+3. Attach your IDE debugger to `:2345`.
+4. Press `Enter` in the terminal to resume the Playwright tests.
 
-#### Integration Tests
-```bash
-# Run all integration tests (requires Docker)
-make test-integration
+---
 
-# Run specific database test
-go test -v ./tests/integration -run TestWithMariaDB
-go test -v ./tests/integration -run TestWithPostgreSQL
-```
+## 5. Continuous Integration
 
-**Requirements**:
-- Docker running
-- Sufficient disk space for container images
-- Network access to pull images
+In CI environments (e.g., GitHub Actions), we skip the specialized local debug targets and run:
+1. `make test-coverage` (Unit, Integration, and E2e Go tests)
+2. `make test-e2e-js-cover` (E2e Playwright tests)
 
-#### Code Coverage
-```bash
-# Generate coverage report
-make test-coverage
-
-# View in browser (opens automatically)
-# Or manually: open coverage.html
-
-# Terminal view
-go tool cover -func=coverage.out
-```
-
-### Test Structure
-
-```
-tests/
-├── unit/
-│   └── handlers_test.go       # Handler tests with SQLite
-└── integration/
-    └── integration_test.go    # Real database tests with testcontainers
-```
-
-### Common Issues
-
-#### 1. Lint Command Not Found
-
-**Error**: `make: golangci-lint: No such file or directory`
-
-**Solution**: The Makefile now correctly uses `$GOPATH/bin/golangci-lint` with fallback to system path.
-
-#### 2. Column Name Mismatches
-
-**Error**: `no such column: dc.document_id`
-
-**Solution**: Fixed in all JOIN queries to use GORM's prefixed column names.
-
-#### 3. Docker Not Running
-
-**Error**: Integration tests fail to start containers
-
-**Solution**:
-```bash
-# Start Docker
-open -a Docker  # macOS
-
-# Verify Docker is running
-docker ps
-```
-
-### Best Practices
-
-1. **Run unit tests frequently** - Fast feedback loop
-2. **Run integration tests before commits** - Catch database-specific issues
-3. **Generate coverage reports** - Aim for >80% coverage
-4. **Use `-short` flag** - Skip slow tests during development
-
-### CI/CD Integration
-
-```yaml
-# GitHub Actions example
-- name: Unit Tests
-  run: make test-unit
-
-- name: Integration Tests
-  run: make test-integration
-  # Requires Docker service
-```
-
-### Debugging Tests
-
-```bash
-# Verbose output
-go test -v ./tests/unit/...
-
-# Run with race detector
-go test -race ./tests/unit/...
-
-# Show test coverage per function
-go test -coverprofile=coverage.out ./...
-go tool cover -func=coverage.out
-```
+Coverage is collected and reported locally, which can be uploaded to services like Codecov.
