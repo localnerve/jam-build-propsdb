@@ -1,11 +1,11 @@
 # jam-build-propsdb - Go Fiber Data Service
 
-A high-performance data service built with Go and Fiber, serving as a drop-in replacement for the Node.js Express data service in the [Jam Build](https://github.com/localnerve/jam-build) project. Supports all GORM-compatible databases including MySQL, PostgreSQL, SQLite, and SQL Server.
+A high-performance data service built with Go and Fiber, serving as a drop-in replacement for the Node.js Express data service in the [Jam Build](https://github.com/localnerve/jam-build) project. Supports all GORM-compatible databases including MariaDB,MySQL, PostgreSQL, SQLite, and SQL Server.
 
 ## Features
 
 - 🚀 **High Performance**: Built with Go Fiber for maximum throughput
-- 🗄️ **Multi-Database Support**: Works with MySQL, PostgreSQL, SQLite, SQL Server, and more via `DB_TYPE` configuration
+- 🗄️ **Multi-Database Support**: Works with MariaDB, MySQL, PostgreSQL, SQLite, and SQL Server via `DB_TYPE` configuration
 - 🔐 **Authentication**: Integrated with Authorizer using `authorizer-go` SDK
 - 📦 **API Compatibility**: Drop-in replacement for the Node.js Express service
 - 🔄 **Version Control**: Optimistic locking with `E_VERSION` conflict detection
@@ -17,6 +17,7 @@ A high-performance data service built with Go and Fiber, serving as a drop-in re
 ### Prerequisites
 
 - Go 1.21 or higher
+- Node 24.12.0 or higher
 - GNU Make 4.4.1
 - Docker Desktop
 
@@ -45,7 +46,6 @@ The service will start on `http://localhost:3000`.
 * Service ports: 3000 (api), 3306 (database), 6379 (cache), 8080 (authorizer)
 * Monitoring ports: 3001 (grafana), 9090 (prometheus)
 
-
 ## Database Configuration
 
 ### Supported Databases
@@ -57,11 +57,22 @@ Configure the database type using the `DB_TYPE` environment variable:
 - **SQLite**: `DB_TYPE=sqlite` (set `DB_APP_DATABASE` to file path)
 - **SQL Server**: `DB_TYPE=sqlserver` or `DB_TYPE=mssql`
 
+### Initialization
+
+SQL migration files will be applied for each database type in the `data/initdb/` directory:
+
+- `data/initdb/mariadb/` - MariaDB initialization
+- `data/initdb/mysql/` - MySQL initialization
+- `data/initdb/postgres/` - PostgreSQL initialization
+- `data/initdb/sqlite/` - SQLite initialization
+- `data/initdb/sqlserver/` - SQL Server initialization
+
 ### Migrations
 
-SQL migration files are provided for each database type in the `data/migrations/` directory:
+SQL migration files will be applied for each database type in the `data/migrations/` directory:
 
-- `data/migrations/mysql/` - MySQL/MariaDB migrations
+- `data/migrations/mariadb/` - MariaDB migrations
+- `data/migrations/mysql/` - MySQL migrations
 - `data/migrations/postgres/` - PostgreSQL migrations
 - `data/migrations/sqlite/` - SQLite migrations
 - `data/migrations/sqlserver/` - SQL Server migrations
@@ -70,7 +81,7 @@ The service also supports GORM AutoMigrate as a fallback.
 
 ## API Endpoints
 
-Swagger documentation is available at `http://localhost:3000/swagger/`.
+Swagger documentation is available at `http://localhost:3000/swagger/` and updated with `make swagger`.
 
 ### Application Data (Public GET, Admin POST/DELETE)
 
@@ -104,7 +115,7 @@ Supported versions:
 
 ## Docker Deployment
 
-### Full Service Stack Docker Compose
+### Service Stack Docker Compose
 
 This will start the API service, database, cache, and authorizer.
 
@@ -120,11 +131,13 @@ This will start the observability services for the API service.
 make obs-up
 ```
 
-For information on Prometheus metrics and Grafana dashboards, see [OBSERVABILITY.md](docs/OBSERVABILITY.md).
+For information on Prometheus metrics and Grafana dashboards, see [OBSERVABILITY](docs/OBSERVABILITY.md).
 
 ## Development
 
 ### Running Tests
+
+Full information on running tests is available in the [testing documentation](docs/TESTING.md).
 
 ```bash
 # Unit tests
@@ -136,11 +149,15 @@ make test-integration
 # End-to-end service health tests (requires Docker)
 make test-e2e
 
+# Unit, Integration, and End-to-end tests with coverage (requires Docker)
+make test-coverage
+
 # Full stack end-to-end tests (requires Docker)
 make test-e2e-js # Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
 
 # Full stack end-to-end tests with coverage (requires Docker)
 make test-e2e-js-cover # Params: REBUILD=1 (rebuild orchestrator), HOST_DEBUG=1 (debug host)
+
 ```
 
 Many more tests are available in the Makefile, see the [testing documentation](docs/TESTING.md) for full details.
@@ -155,11 +172,8 @@ make build
 # build the healthcheck binary
 make build-healthcheck
 
-# build the test orchestrator binary
-make build-orchestrator
-
-# build all
-make build-all
+# build the testcontainers binary
+make build-testcontainers
 
 ```
 
@@ -186,14 +200,6 @@ Copyright (c) 2026 Alex Grant <info@localnerve.com> (https://www.localnerve.com)
 
 This project is licensed under the GNU Affero General Public License v3.0 or later.
 
-## Migration from Node.js Service
+## Acknowledgments
 
-This service is a drop-in replacement for the Node.js Express data service with the following improvements:
-
-- **Performance**: Go's compiled nature provides better performance
-- **Database Support**: Expanded from MariaDB to all GORM-supported databases
-- **Simplified Deployment**: No stored procedures needed - all logic in application code
-- **Type Safety**: Strong typing with Go
-- **Containerization**: Production-ready Docker support
-
-API endpoints, request/response formats, and authentication remain identical to ensure compatibility.
+Special thanks to the Antigravity AI assistant for help with the Go migration, testing architecture, and documentation.
