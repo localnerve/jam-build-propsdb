@@ -24,9 +24,11 @@ import (
 	"fmt"
 
 	"github.com/localnerve/jam-build-propsdb/internal/models"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
+	"gorm.io/hints"
 )
 
 // DocumentResult represents the API output format
@@ -228,7 +230,7 @@ func reduceApplicationDocuments(docs []models.ApplicationDocument) DocumentResul
 			collMap := make(map[string]interface{})
 			for _, prop := range coll.Properties {
 				var value interface{}
-				if err := json.Unmarshal(prop.PropertyValue, &value); err == nil {
+				if err := json.Unmarshal(prop.PropertyValue.JSON, &value); err == nil {
 					collMap[prop.PropertyName] = value
 				}
 			}
@@ -257,7 +259,7 @@ func reduceUserDocuments(docs []models.UserDocument) DocumentResult {
 			collMap := make(map[string]interface{})
 			for _, prop := range coll.Properties {
 				var value interface{}
-				if err := json.Unmarshal(prop.PropertyValue, &value); err == nil {
+				if err := json.Unmarshal(prop.PropertyValue.JSON, &value); err == nil {
 					collMap[prop.PropertyName] = value
 				}
 			}
@@ -277,8 +279,7 @@ func SetApplicationProperties(db *gorm.DB, documentName string, version uint64, 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -348,7 +349,7 @@ func SetApplicationProperties(db *gorm.DB, documentName string, version uint64, 
 					// Create new property
 					property = models.ApplicationProperty{
 						PropertyName:  propName,
-						PropertyValue: jsonValue,
+						PropertyValue: models.JSON{JSON: datatypes.JSON(jsonValue)},
 					}
 					if err := tx.Create(&property).Error; err != nil {
 						return err
@@ -362,8 +363,8 @@ func SetApplicationProperties(db *gorm.DB, documentName string, version uint64, 
 				} else {
 					// Property exists, check if value changed
 					property = existingProp.Properties[0]
-					if string(property.PropertyValue) != string(jsonValue) {
-						if err := tx.Model(&property).Update("property_value", jsonValue).Error; err != nil {
+					if string(property.PropertyValue.JSON) != string(jsonValue) {
+						if err := tx.Model(&property).Update("property_value", models.JSON{JSON: datatypes.JSON(jsonValue)}).Error; err != nil {
 							return err
 						}
 						documentUpdated = true
@@ -402,8 +403,7 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.UserDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -470,7 +470,7 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 					// Create a new property for this collection
 					property = models.UserProperty{
 						PropertyName:  propName,
-						PropertyValue: jsonValue,
+						PropertyValue: models.JSON{JSON: datatypes.JSON(jsonValue)},
 					}
 					if err := tx.Create(&property).Error; err != nil {
 						return err
@@ -482,8 +482,8 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 					documentUpdated = true
 				} else {
 					// Update value if different
-					if string(property.PropertyValue) != string(jsonValue) {
-						if err := tx.Model(&property).Update("property_value", jsonValue).Error; err != nil {
+					if string(property.PropertyValue.JSON) != string(jsonValue) {
+						if err := tx.Model(&property).Update("property_value", models.JSON{JSON: datatypes.JSON(jsonValue)}).Error; err != nil {
 							return err
 						}
 						documentUpdated = true
@@ -511,4 +511,12 @@ func SetUserProperties(db *gorm.DB, userID, documentName string, version uint64,
 	})
 
 	return newVersion, affectedRows, err
+}
+
+// withLocking applies the correct locking clause based on the database driver (MSSQL vs others)
+func withLocking(db *gorm.DB) *gorm.DB {
+	if db.Dialector.Name() == "sqlserver" || db.Dialector.Name() == "mssql" {
+		return db.Clauses(hints.New("WITH (UPDLOCK, ROWLOCK)"))
+	}
+	return db.Clauses(clause.Locking{Strength: "UPDATE"})
 }

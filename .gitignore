@@ -23,6 +23,7 @@ go.work
 .env.debug
 .env.cover
 .env.docker
+.env.docker.type
 
 # IDE
 .vscode/

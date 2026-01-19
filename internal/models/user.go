@@ -21,8 +21,6 @@ package models
 
 import (
 	"time"
-
-	"gorm.io/datatypes"
 )
 
 // UserDocument represents a document in the user scope
@@ -33,7 +31,7 @@ type UserDocument struct {
 	DocumentVersion uint64 `gorm:"not null;default:0"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-	Collections     []UserCollection `gorm:"many2many:user_documents_collections;joinForeignKey:document_id;joinReferences:collection_id"`
+	Collections     []UserCollection `gorm:"many2many:user_documents_collections;joinForeignKey:document_id;joinReferences:collection_id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 // UserCollection represents a collection of properties for users
@@ -42,14 +40,14 @@ type UserCollection struct {
 	CollectionName string `gorm:"size:255;not null"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-	Properties     []UserProperty `gorm:"many2many:user_collections_properties;joinForeignKey:collection_id;joinReferences:property_id"`
+	Properties     []UserProperty `gorm:"many2many:user_collections_properties;joinForeignKey:collection_id;joinReferences:property_id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 // UserProperty represents a single property with a JSON value for users
 type UserProperty struct {
-	PropertyID    uint64         `gorm:"primaryKey;autoIncrement"`
-	PropertyName  string         `gorm:"size:255;not null"`
-	PropertyValue datatypes.JSON `gorm:"type:json"`
+	PropertyID    uint64 `gorm:"primaryKey;autoIncrement"`
+	PropertyName  string `gorm:"size:255;not null"`
+	PropertyValue JSON
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

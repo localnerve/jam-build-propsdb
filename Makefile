@@ -1,33 +1,65 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-cache-clean test-all test-coverage report-coverage docker-compose-up docker-compose-down docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-local test-cache-clean test-all test-coverage report-coverage docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
+
+export PROJECT_ROOT := $(CURDIR)
 
 # Variables
-BINARY_NAME=jam-build-propsdb
-HEALTHCHECK_BINARY=healthcheck
-TESTCONTAINERS_BINARY=testcontainers
-COVERAGE_DIR=coverage
-COVERAGE_FILE=$(COVERAGE_DIR)/coverage.out
-COVERAGE_HTML=$(COVERAGE_DIR)/coverage.html
-TESTCONTAINERS_LOG=testcontainers.log
-SWAGGER_DIR=docs/api
+BINARY_NAME := jam-build-propsdb
+HEALTHCHECK_BINARY := healthcheck
+TESTCONTAINERS_BINARY := testcontainers
+COVERAGE_DIR := coverage
+COVERAGE_FILE := $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
+TESTCONTAINERS_LOG := testcontainers.log
+SWAGGER_DIR := docs/api
 
 # Docker parameters
-ENV_FILE=.env.dev
-ENV_DOCKER_FILE=.env.docker
+ENV_FILE := .env.dev
+ENV_DOCKER_FILE := .env.docker
+ENV_DOCKER_TYPE_FILE := $(ENV_DOCKER_FILE).type
+
+# 1. Resolve DB_TYPE (Priority: CLI/Env > .env.docker.type (Sticky) > .env.dev)
+DB_TYPE_STICKY := $(shell cat $(ENV_DOCKER_TYPE_FILE) 2>/dev/null)
+DB_TYPE_DEV := $(shell grep -E "^DB_TYPE=" $(ENV_FILE) | cut -d'=' -f2 | cut -d'#' -f1 | tr -d ' ' || echo mariadb)
+DB_TYPE ?= $(if $(DB_TYPE_STICKY),$(DB_TYPE_STICKY),$(DB_TYPE_DEV))
+
+# Port defaults based on DB_TYPE
+ifeq ($(DB_TYPE),postgres)
+  DB_PORT_DEFAULT := 5432
+else ifeq ($(DB_TYPE),mssql)
+  DB_PORT_DEFAULT := 1433
+else
+  DB_PORT_DEFAULT := 3306
+endif
+
+# Get DB_PORT from env file if present, otherwise use default.
+# We use $(if ...) for the fallback because shell pipes hide the exit code of grep.
+DB_PORT_RAW := $(shell grep -E "^DB_PORT=" $(ENV_FILE) | cut -d'=' -f2 | cut -d'#' -f1 | tr -d ' ')
+DB_PORT ?= $(if $(DB_PORT_RAW),$(DB_PORT_RAW),$(DB_PORT_DEFAULT))
+
+# Force .env.docker regeneration if DB_TYPE has changed since last run.
+# Marking it as PHONY if out of sync ensures 'make' doesn't skip the recipe.
+ifneq ($(DB_TYPE),$(DB_TYPE_STICKY))
+.PHONY: $(ENV_DOCKER_FILE)
+endif
+
+COMPOSE_BASE := -f docker-compose.yml
+DB_COMPOSE := $(wildcard data/compose/$(DB_TYPE).yml)
+COMPOSECMD := docker-compose $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
 
 # Commands
-GOCMD=go
-DLVCMD=dlv
-NPXCMD=npx
-GODOTENVCMD=godotenv
-GODOTENV=$(GODOTENVCMD) -f $(ENV_FILE)
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GODOTENV) $(GOCMD) test
-DLVTEST=$(GODOTENV) $(DLVCMD) test
-GOGET=$(GOCMD) get
-GOMOD=$(GOCMD) mod
-GOFMT=$(GOCMD) fmt
-GOVET=$(GOCMD) vet
+GOCMD := go
+DLVCMD := dlv
+NPXCMD := npx
+GODOTENVCMD := godotenv
+GODOTENV := $(GODOTENVCMD) -f $(ENV_FILE)
+GOBUILD := $(GOCMD) build
+GOCLEAN := $(GOCMD) clean
+GOTEST := $(GODOTENV) $(GOCMD) test
+DLVTEST := $(GODOTENV) $(DLVCMD) test
+GOGET := $(GOCMD) get
+GOMOD := $(GOCMD) mod
+GOFMT := $(GOCMD) fmt
+GOVET := $(GOCMD) vet
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -57,7 +89,7 @@ clean: ## Remove build artifacts
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME) $(HEALTHCHECK_BINARY) $(TESTCONTAINERS_BINARY)
-	rm -f $(ENV_DOCKER_FILE)
+	rm -f $(ENV_DOCKER_FILE) $(ENV_DOCKER_TYPE_FILE)
 	rm -rf $(COVERAGE_DIR)
 	@echo "Clean complete"
 
@@ -147,6 +179,10 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 
 test-e2e-js-debug: ## Run E2E tests in debug mode (alias for DEBUG=2)
 	@$(MAKE) test-e2e-js DEBUG=2
+
+test-e2e-local: ## Run E2E Playwright tests against already-running local containers.
+	@echo "Running E2E tests against local environmental services using $(ENV_FILE)..."
+	@$(GODOTENVCMD) -f $(ENV_FILE) $(NPXCMD) playwright test --project api-chromium
 
 test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 (rebuild orchestrator), HOST_DEBUG=1 (debug host)
 	@{ \
@@ -268,20 +304,35 @@ test-coverage: ## Run tests with coverage report. Params: OPEN=1 (optional)
 	@$(MAKE) report-coverage DIR=$(COVERAGE_DIR) TITLE="GO TEST COVERAGE SUMMARY" OPEN=$(OPEN)
 
 $(ENV_DOCKER_FILE): $(ENV_FILE)
-	@echo "Generating $(ENV_DOCKER_FILE) from $(ENV_FILE)..."
-	@sed 's/localhost/host.docker.internal/g' $(ENV_FILE) > $(ENV_DOCKER_FILE)
+	@if [ "$(DB_TYPE)" != "$(DB_TYPE_STICKY)" ]; then \
+		echo "DB_TYPE changed ($(DB_TYPE_STICKY) -> $(DB_TYPE)), forcing $(ENV_DOCKER_FILE) regeneration..."; \
+	fi
+	@echo "Generating $(ENV_DOCKER_FILE) from $(ENV_FILE) for $(DB_TYPE)..."
+	@# Replace localhost:8080 with authorizer:8080, and other localhost with host.docker.internal
+	@sed -e 's/localhost:8080/authorizer:8080/g' \
+	     -e 's/localhost/host.docker.internal/g' $(ENV_FILE) > $(ENV_DOCKER_FILE)
+	@# Ensure critical overrides are present and not commented out. 
+	@# We use printf to ensure we start on a new line even if $(ENV_FILE) lacks a trailing newline.
+	@sed -i '' '/^DB_TYPE=/d' $(ENV_DOCKER_FILE) || true
+	@sed -i '' '/^DB_PORT=/d' $(ENV_DOCKER_FILE) || true
+	@printf "\nDB_TYPE=$(DB_TYPE)\nDB_PORT=$(DB_PORT)\n" >> $(ENV_DOCKER_FILE)
+	@echo "$(DB_TYPE)" > $(ENV_DOCKER_TYPE_FILE)
 
-docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose
-	@echo "Starting Docker Compose services..."
-	docker-compose --env-file $(ENV_DOCKER_FILE) up -d
-	@echo "Services started. Use 'make docker-compose-logs' to view logs"
+docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose. Use BUILD=1 to force recompile.
+	@echo "Starting Docker Compose services for $(DB_TYPE)..."
+	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) up -d $(if $(BUILD),--build)
 
 docker-compose-down: $(ENV_DOCKER_FILE) ## Stop all Docker Compose services
 	@echo "Stopping Docker Compose services..."
-	docker-compose --env-file $(ENV_DOCKER_FILE) down
+	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) down
 
-docker-compose-logs: $(ENV_DOCKER_FILE) ## View Docker Compose logs
-	docker-compose --env-file $(ENV_DOCKER_FILE) logs -f
+docker-compose-clean: $(ENV_DOCKER_FILE) ## Stop all services and remove volumes (thorough clean)
+	@echo "Stopping Docker Compose and removing volumes..."
+	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) down -v
+
+docker-compose-logs: $(ENV_DOCKER_FILE) ## View Docker Compose logs (use DB_TYPE=<type> if not default)
+	@echo "Showing logs for $(DB_TYPE) configuration..."
+	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) logs -f
 
 obs-up: ## Start observability services
 	@echo "Starting observability services..."

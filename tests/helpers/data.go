@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/localnerve/jam-build-propsdb/internal/models"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -60,7 +61,7 @@ func CreateTestCollection(t *testing.T, db *gorm.DB, docName, colName string, pr
 
 		prop := models.ApplicationProperty{
 			PropertyName:  k,
-			PropertyValue: jsonVal,
+			PropertyValue: models.JSON{JSON: datatypes.JSON(jsonVal)},
 		}
 		if err := db.Model(&coll).Association("Properties").Append(&prop); err != nil {
 			t.Fatalf("Failed to associate property: %v", err)

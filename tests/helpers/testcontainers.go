@@ -237,14 +237,14 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	// Create and start the Database container
 	dbType := os.Getenv("DB_TYPE")
 	dbNetworkName := os.Getenv("DB_HOST")
-	tcpDbPort, err := nat.NewPort("tcp", os.Getenv("DB_PORT"))
+	tcpDbPort, err := nat.NewPort("tcp", os.Getenv("TESTCONTAINERS_DB_PORT"))
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, "Failed to create DB port")
 	}
 	dbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        os.Getenv("DB_IMAGE"),
+			Image:        os.Getenv("TESTCONTAINERS_DB_IMAGE"),
 			ExposedPorts: []string{string(tcpDbPort)},
 
 			Env:        getDBInitEnvMap(dbType),
@@ -285,7 +285,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		testContainers.Terminate(t)
 		exitWithError(t, err, "Failed to create Authorizer port")
 	}
-	authzDbConnection := fmt.Sprintf("root:%s@tcp(%s:%s)/%s", os.Getenv("DB_ROOT_PASSWORD"), dbNetworkName, os.Getenv("DB_PORT"), os.Getenv("AUTHZ_DATABASE"))
+	authzDbConnection := fmt.Sprintf("root:%s@tcp(%s:%s)/%s", os.Getenv("DB_ROOT_PASSWORD"), dbNetworkName, os.Getenv("TESTCONTAINERS_DB_PORT"), os.Getenv("AUTHZ_DATABASE"))
 	authzLogLevel := "info"
 	if debugContainer == "true" {
 		authzLogLevel = "debug"
@@ -376,7 +376,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		Env: map[string]string{
 			"DB_TYPE":                 dbType,
 			"DB_HOST":                 dbNetworkName,
-			"DB_PORT":                 os.Getenv("DB_PORT"),
+			"DB_PORT":                 os.Getenv("TESTCONTAINERS_DB_PORT"),
 			"DB_APP_DATABASE":         os.Getenv("DB_APP_DATABASE"),
 			"DB_APP_USER":             os.Getenv("DB_APP_USER"),
 			"DB_APP_PASSWORD":         os.Getenv("DB_APP_PASSWORD"),
@@ -570,12 +570,12 @@ func performMySqlDBInit(t *testing.T, testContainers *TestContainers, dbHost str
 		testContainers.Terminate(t)
 		exitWithError(t, err, fmt.Sprintf("Failed to flush privileges for %s", os.Getenv("DB_APP_DATABASE")))
 	}
-	err = executeSQL(db, data.InitdbMariaDBTables)
+	err = executeSQL(db, data.InitdbMySQLTables)
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, fmt.Sprintf("Failed to execute %s tables init sql", os.Getenv("DB_TYPE")))
 	}
-	err = executeSQL(db, data.InitdbMariaDBPrivileges)
+	err = executeSQL(db, data.InitdbMySQLPrivileges)
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, fmt.Sprintf("Failed to execute %s privileges init sql", os.Getenv("DB_TYPE")))

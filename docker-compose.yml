@@ -41,33 +41,6 @@ services:
       - propsdb-network
     restart: unless-stopped
 
-  # Database Service - Update for DB_TYPE
-  database:
-    image: ${DB_IMAGE}
-    container_name: propsdb-database
-    ports:
-      - "${DB_PORT}:${DB_PORT}"
-    environment:
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_APP_DATABASE}
-      - MYSQL_USER=${DB_APP_USER}
-      - MYSQL_PASSWORD=${DB_APP_PASSWORD}
-      - AUTHZ_DATABASE=${AUTHZ_DATABASE}     # Added for init script
-      - DB_USER=${DB_USER}                   # Added for init script
-      - DB_PASSWORD=${DB_PASSWORD}           # Added for init script
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    volumes:
-      - dbdata:/var/lib/mysql
-      - ./data/initdb/${DB_TYPE}:/docker-entrypoint-initdb.d
-      - ./data/migrations/${DB_TYPE}:/docker-entrypoint-migrations.d
-    networks:
-      - propsdb-network
-    restart: unless-stopped
 
   # The cache - Used by authorizer for session storage
   cache:
@@ -90,11 +63,8 @@ services:
       - "${AUTHZ_PORT}:${AUTHZ_PORT}"
     environment:
       - ENV=production
-      - DATABASE_TYPE=${DB_TYPE}
-      - DATABASE_URL=root:${DB_ROOT_PASSWORD}@tcp(database:${DB_PORT})/${AUTHZ_DATABASE}
       - PORT=${AUTHZ_PORT}
       - ADMIN_SECRET=${AUTHZ_ADMIN_SECRET}
-      - DATABASE_NAME=${AUTHZ_DATABASE}
       - CLIENT_ID=${AUTHZ_CLIENT_ID}
       - ORGANIZATION_NAME=${AUTHZ_ORGANIZATION_NAME}
       - ORGANIZATION_LOGO=${AUTHZ_ORGANIZATION_LOGO}

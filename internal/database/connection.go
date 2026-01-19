@@ -63,7 +63,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		dialector = sqlite.Open(cfg.DBAppDatabase)
 
 	case "sqlserver", "mssql":
-		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
+		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s&trust+server+certificate=true",
 			cfg.DBAppUser,
 			cfg.DBAppPassword,
 			cfg.DBHost,
@@ -128,7 +128,7 @@ func ConnectUser(cfg *config.Config) (*gorm.DB, error) {
 		dialector = sqlite.Open(cfg.DBAppDatabase)
 
 	case "sqlserver", "mssql":
-		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
+		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s&trust+server+certificate=true",
 			cfg.DBUser,
 			cfg.DBPassword,
 			cfg.DBHost,
