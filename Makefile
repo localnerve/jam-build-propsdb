@@ -182,7 +182,7 @@ test-e2e-js-debug: ## Run E2E tests in debug mode (alias for DEBUG=2)
 
 test-e2e-local: ## Run E2E Playwright tests against already-running local containers.
 	@echo "Running E2E tests against local environmental services using $(ENV_FILE)..."
-	@$(GODOTENVCMD) -f $(ENV_FILE) $(NPXCMD) playwright test --project api-chromium
+	@$(GODOTENVCMD) -f $(ENV_FILE) $(NPXCMD) playwright test --project api-chromium $(if $(filter sqlite,$(DB_TYPE)),--workers=1)
 
 test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 (rebuild orchestrator), HOST_DEBUG=1 (debug host)
 	@{ \

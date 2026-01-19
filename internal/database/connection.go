@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/glebarez/sqlite"
 	"github.com/localnerve/jam-build-propsdb/internal/config"
 	"github.com/localnerve/jam-build-propsdb/internal/models"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

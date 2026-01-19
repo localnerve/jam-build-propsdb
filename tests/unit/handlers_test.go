@@ -25,13 +25,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/gofiber/fiber/v2"
 	"github.com/localnerve/jam-build-propsdb/internal/handlers"
 	"github.com/localnerve/jam-build-propsdb/internal/models"
 	"github.com/localnerve/jam-build-propsdb/internal/services"
 	"github.com/localnerve/jam-build-propsdb/tests/helpers"
 	"gorm.io/datatypes"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 

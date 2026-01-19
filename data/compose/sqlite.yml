@@ -2,9 +2,13 @@ services:
   database:
     image: keinos/sqlite3:latest
     container_name: propsdb-database
+    user: root
     volumes:
       - dbdata:/data
       - ${PROJECT_ROOT}/data/initdb/sqlite:/scripts/init
+    environment:
+      - DB_APP_DATABASE=${DB_APP_DATABASE}
+      - AUTHZ_DATABASE=${AUTHZ_DATABASE}
     # Ensure the database files exist before finishing setup
     command: >
       sh -c '/scripts/init/001-ddl-init.sh && tail -f /dev/null'
