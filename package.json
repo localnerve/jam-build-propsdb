@@ -1,6 +1,6 @@
 {
   "name": "jam-build-propsdb",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The e2e test harness for propsdb, the multi-user, concurrent, RBAC property api service in go fiber",
   "scripts": {
     "test": "echo See the Makefile for tests and support commands: make test-e2e-js"
