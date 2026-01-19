@@ -1,0 +1,33 @@
+services:
+  database:
+    image: ${DB_IMAGE:-mysql:8.4}
+    container_name: propsdb-database
+    ports:
+      - "${DB_PORT:-3306}:${DB_PORT:-3306}"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_APP_DATABASE}
+      - MYSQL_USER=${DB_APP_USER}
+      - MYSQL_PASSWORD=${DB_APP_PASSWORD}
+      - AUTHZ_DATABASE=${AUTHZ_DATABASE}  # Added for init script
+      - DB_USER=${DB_USER}                # Added for init script
+      - DB_PASSWORD=${DB_PASSWORD}        # Added for init script
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${DB_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ${PROJECT_ROOT}/data/initdb/mysql:/docker-entrypoint-initdb.d
+      - ${PROJECT_ROOT}/data/migrations/mysql:/docker-entrypoint-migrations.d
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  authorizer:
+    environment:
+      - DATABASE_TYPE=mysql
+      - DATABASE_URL=root:${DB_ROOT_PASSWORD}@tcp(database:${DB_PORT:-3306})/${AUTHZ_DATABASE}
+      - DATABASE_NAME=${AUTHZ_DATABASE}

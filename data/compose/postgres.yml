@@ -1,0 +1,36 @@
+services:
+  database:
+    image: ${DB_IMAGE:-postgres:18-alpine}
+    container_name: propsdb-database
+    ports:
+      - "${DB_PORT:-5432}:${DB_PORT:-5432}"
+    environment:
+      - POSTGRES_PASSWORD=${DB_ROOT_PASSWORD}
+      - POSTGRES_DB=${DB_APP_DATABASE}
+      - POSTGRES_USER=postgres
+      # Postgres doesn't easily create multiple DBs/users via built-in env vars,
+      # so we rely on 001-ddl-init.sh and pass extra vars
+      - DB_APP_USER=${DB_APP_USER}
+      - DB_APP_PASSWORD=${DB_APP_PASSWORD}
+      - AUTHZ_DATABASE=${AUTHZ_DATABASE}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "${DB_APP_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ${PROJECT_ROOT}/data/initdb/postgres:/docker-entrypoint-initdb.d
+      - ${PROJECT_ROOT}/data/migrations/postgres:/docker-entrypoint-migrations.d
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  authorizer:
+    environment:
+      - DATABASE_TYPE=postgres
+      - DATABASE_URL=postgres://${DB_APP_USER}:${DB_APP_PASSWORD}@database:${DB_PORT:-5432}/${AUTHZ_DATABASE}?sslmode=disable
+      - DATABASE_NAME=${AUTHZ_DATABASE}

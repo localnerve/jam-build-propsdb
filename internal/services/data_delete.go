@@ -24,7 +24,6 @@ import (
 
 	"github.com/localnerve/jam-build-propsdb/internal/models"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -36,8 +35,7 @@ func DeleteApplicationCollection(db *gorm.DB, documentName string, version uint6
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -120,8 +118,7 @@ func DeleteApplicationDocument(db *gorm.DB, documentName string, version uint64)
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -161,8 +158,7 @@ func DeleteApplicationProperties(db *gorm.DB, documentName string, version uint6
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Lock and check version
 		var doc models.ApplicationDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("document_name = ?", documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -242,8 +238,7 @@ func DeleteUserCollection(db *gorm.DB, userID, documentName string, version uint
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var doc models.UserDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -313,8 +308,7 @@ func DeleteUserDocument(db *gorm.DB, userID, documentName string, version uint64
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var doc models.UserDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			return err
@@ -351,8 +345,7 @@ func DeleteUserProperties(db *gorm.DB, userID, documentName string, version uint
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var doc models.UserDocument
-		if err := tx.Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := withLocking(tx).Session(&gorm.Session{Logger: tx.Logger.LogMode(logger.Silent)}).
 			Where("user_id = ? AND document_name = ?", userID, documentName).
 			First(&doc).Error; err != nil {
 			return err

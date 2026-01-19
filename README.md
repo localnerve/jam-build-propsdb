@@ -1,11 +1,11 @@
 # jam-build-propsdb - Go Fiber Data Service
 
-A high-performance data service built with Go and Fiber, serving as a drop-in replacement for the Node.js Express data service in the [Jam Build](https://github.com/localnerve/jam-build) project. Supports all GORM-compatible databases including MariaDB,MySQL, PostgreSQL, SQLite, and SQL Server.
+A high-performance data service built with Go and Fiber, serving as a drop-in replacement for the Node.js Express data service in the [Jam Build](https://github.com/localnerve/jam-build) project. Supports all GORM-compatible databases including MariaDB/MySQL, PostgreSQL, SQLite, and SQL Server.
 
 ## Features
 
 - 🚀 **High Performance**: Built with Go Fiber for maximum throughput
-- 🗄️ **Multi-Database Support**: Works with MariaDB, MySQL, PostgreSQL, SQLite, and SQL Server via `DB_TYPE` configuration
+- 🗄️ **Multi-Database Support**: Works with MariaDB, MySQL, PostgreSQL, SQLite, and SQL Server via `DB_TYPE` configuration. See [this document](docs/DATABASE.md) for configuration details.
 - 🔐 **Authentication**: Integrated with Authorizer using `authorizer-go` SDK
 - 📦 **API Compatibility**: Drop-in replacement for the Node.js Express service
 - 🔄 **Version Control**: Optimistic locking with `E_VERSION` conflict detection
@@ -43,14 +43,18 @@ The service will start on `http://localhost:3000`.
 
 #### All Ports Used
 
-* Service ports: 3000 (api), 3306 (database), 6379 (cache), 8080 (authorizer)
+* Service ports: 3000 (api), 6379 (cache), 8080 (authorizer)
+* Typical database ports (depends on `DB_TYPE`, defaults to `mariadb`):
+    * 3306 (mariadb, mysql)
+    * 5432 (postgres)
+    * 1433 (mssql)
 * Monitoring ports: 3001 (grafana), 9090 (prometheus)
 
 ## Database Configuration
 
 ### Supported Databases
 
-Configure the database type using the `DB_TYPE` environment variable:
+Configure the database type using the `DB_TYPE` environment variable (defaults to `mariadb`). For a detailed matrix of configuration requirements (ports, images, healthchecks), see [the database documentation](docs/DATABASE.md).
 
 - **MySQL/MariaDB**: `DB_TYPE=mysql` or `DB_TYPE=mariadb`
 - **PostgreSQL**: `DB_TYPE=postgres` or `DB_TYPE=postgresql`

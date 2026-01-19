@@ -1,0 +1,40 @@
+services:
+  database:
+    image: ${DB_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}
+    container_name: propsdb-database
+    platform: linux/amd64 # Support Apple Silicon (ARM64) via emulation
+    user: root # Needed to run the shell script and server together
+    ports:
+      - "${DB_PORT:-1433}:${DB_PORT:-1433}"
+    environment:
+      - ACCEPT_EULA=Y                   # Required by MSSQL software
+      - MSSQL_SA_PASSWORD=${DB_ROOT_PASSWORD} # Required by MSSQL software
+      - DB_APP_DATABASE=${DB_APP_DATABASE} # Used by init scripts
+      - DB_APP_USER=${DB_APP_USER}         # Used by init scripts
+      - DB_APP_PASSWORD=${DB_APP_PASSWORD} # Used by init scripts
+      - AUTHZ_DATABASE=${AUTHZ_DATABASE}   # Used by init scripts
+      - DB_USER=${DB_USER}                 # Used by init scripts
+      - DB_PASSWORD=${DB_PASSWORD}         # Used by init scripts
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_ROOT_PASSWORD}", "-C", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    volumes:
+      - dbdata:/var/opt/mssql
+      # We mount these to a generic /scripts path because MSSQL doesn't support initdb.d natively;
+      # our custom 001-ddl-init.sh script handles the execution.
+      - ${PROJECT_ROOT}/data/initdb/mssql:/scripts/init
+      - ${PROJECT_ROOT}/data/migrations/mssql:/scripts/migrations
+    command: >
+      bash -c 'bash /scripts/init/001-ddl-init.sh & /opt/mssql/bin/sqlservr'
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  authorizer:
+    environment:
+      - DATABASE_TYPE=sqlserver
+      - DATABASE_URL=sqlserver://sa:${DB_ROOT_PASSWORD}@database:${DB_PORT:-1433}?database=${AUTHZ_DATABASE}&trust+server+certificate=true
+      - DATABASE_NAME=${AUTHZ_DATABASE}

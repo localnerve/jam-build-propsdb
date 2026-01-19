@@ -1,0 +1,40 @@
+services:
+  database:
+    image: keinos/sqlite3:latest
+    container_name: propsdb-database
+    user: root
+    volumes:
+      - dbdata:/data
+      - ${PROJECT_ROOT}/data/initdb/sqlite:/scripts/init
+    environment:
+      - DB_APP_DATABASE=${DB_APP_DATABASE}
+      - AUTHZ_DATABASE=${AUTHZ_DATABASE}
+    # Ensure the database files exist before finishing setup
+    command: >
+      sh -c '/scripts/init/001-ddl-init.sh && tail -f /dev/null'
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/${DB_APP_DATABASE}.db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 2s
+    networks:
+      - propsdb-network
+    restart: unless-stopped
+
+  propsdb:
+    volumes:
+      - dbdata:/data
+    environment:
+      - DB_APP_DATABASE=/data/${DB_APP_DATABASE}.db
+      - DB_APP_USER=sqlite_user # Pass validation
+      - DB_USER=sqlite_user     # Pass validation
+      - AUTHZ_URL=${AUTHZ_URL}
+      - AUTHZ_CLIENT_ID=${AUTHZ_CLIENT_ID}
+
+  authorizer:
+    volumes:
+      - dbdata:/data
+    environment:
+      - DATABASE_TYPE=sqlite
+      - DATABASE_URL=/data/${AUTHZ_DATABASE}.db

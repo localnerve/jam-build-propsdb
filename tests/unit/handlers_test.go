@@ -25,12 +25,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/gofiber/fiber/v2"
 	"github.com/localnerve/jam-build-propsdb/internal/handlers"
 	"github.com/localnerve/jam-build-propsdb/internal/models"
 	"github.com/localnerve/jam-build-propsdb/internal/services"
 	"github.com/localnerve/jam-build-propsdb/tests/helpers"
-	"gorm.io/driver/sqlite"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -72,7 +73,7 @@ func TestGetAppProperties(t *testing.T) {
 
 	prop := models.ApplicationProperty{
 		PropertyName:  "testprop",
-		PropertyValue: []byte(`"testvalue"`),
+		PropertyValue: models.JSON{JSON: datatypes.JSON([]byte(`"testvalue"`))},
 	}
 	db.Create(&prop)
 

@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/glebarez/sqlite"
 	"github.com/localnerve/jam-build-propsdb/internal/config"
 	"github.com/localnerve/jam-build-propsdb/internal/models"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -63,7 +63,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		dialector = sqlite.Open(cfg.DBAppDatabase)
 
 	case "sqlserver", "mssql":
-		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
+		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s&trust+server+certificate=true",
 			cfg.DBAppUser,
 			cfg.DBAppPassword,
 			cfg.DBHost,
@@ -128,7 +128,7 @@ func ConnectUser(cfg *config.Config) (*gorm.DB, error) {
 		dialector = sqlite.Open(cfg.DBAppDatabase)
 
 	case "sqlserver", "mssql":
-		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
+		dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s&trust+server+certificate=true",
 			cfg.DBUser,
 			cfg.DBPassword,
 			cfg.DBHost,
