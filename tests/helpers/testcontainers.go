@@ -405,7 +405,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			"--api-version=2",
 			"--accept-multiclient",
 			"exec",
-			"./propsdb",
+			"./jam-build-propsdb",
 		}
 	}
 
