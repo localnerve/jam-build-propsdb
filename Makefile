@@ -219,7 +219,7 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "HOST_DEBUG=true" >> .env.cover; \
 		fi; \
 		ENV_FILE_TO_USE=.env.cover; \
-		TIMEOUT=120; \
+		TIMEOUT=150; \
 		if [ "$$REBUILD_VAL" -eq 1 ]; then \
 			$(MAKE) build-testcontainers-debug; \
 		else \
@@ -253,7 +253,7 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 		\
 		echo "Cleaning up and collecting coverage..."; \
 		if [ "$(HOST_DEBUG)" = "1" ]; then \
-			echo "Please stop the debugger (Ctrl+C and 'quit' or 'exit') to trigger coverage collection, then press enter here."; \
+			echo "Press Enter or Ctrl+C in the other terminal to stop the Orchestrator and trigger coverage collection. Debug breakpoints will be hit. When complete, press enter here."; \
 			read -r dummy; \
 		else \
 			kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
