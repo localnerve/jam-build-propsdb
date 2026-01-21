@@ -45,7 +45,7 @@ This project follows a 4-layered testing strategy to ensure reliability across u
 | `make test-e2e` | Run Go-based smoke tests. |
 | `make test-all` | Run the unit, integration, and Go E2E tests. |
 | `make test-coverage` | Run all Go tests and generate coverage report. |
-| `make test-e2e-js` | Run Playwright E2E tests against the test image. |
+| `make test-e2e-js` | Run Playwright E2E tests against the test image. Full stack service debugging with parameters. |
 | `make test-e2e-js-cover` | Run Playwright E2E tests against the test image and generate coverage report. |
 
 ### Parameters
@@ -68,15 +68,17 @@ Integration and E2E tests use `testcontainers-go` to spin up ephemeral database 
 - Docker Desktop must be running.
 - Port permissions (the tests will find available ports automatically).
 
+Integration and E2E tests build and use `jam-build-propsdb-test` image to run the tests.
+
 ---
 
 ## 4. Debugging Tests
 
-The debug commands start the test suites in the Delve debugger. Delve waits for you to connect to port 2345 with the dlv command or a comparable IDE launch configuration.
+The project's Makefile exposes debug commands that start targeted code in the Delve debugger. Delve waits for you to connect to port 2345 with the dlv command or a comparable IDE launch configuration.
 
-### Debug Go Tests (Unit/Integration/E2E)
+### Visual Studio Code Launch Configurations
 
-Here is the Visual Studio Code launch configuration to attach to Delve:
+The Visual Studio Code launch configuration to attach to Delve to debug the Unit/Integration/E2E Go tests or the Go Testcontainers Orchestrator:
 ```json
 {
   "name": "Attach to Delve (in Test)",
@@ -89,7 +91,26 @@ Here is the Visual Studio Code launch configuration to attach to Delve:
 }
 ```
 
-Here are the debugging commands. They each target a specific set of code, do the prep work and pause for debugger attachment on port 2345. Some debugging scenarios are more complex, and require a sequence of commands.
+The Visual Studio Code launch configuration to attach to Delve to debug the propsdb-api service running from the jam-build-propsdb-test image:
+```json
+{
+  "name": "Attach to PropsDB (in Testcontainer)",
+  "type": "go",
+  "request": "attach",
+  "mode": "remote",
+  "port": 2345, // Testcontainers forces this fixed local port when env has DEBUG_CONTAINER=1
+  "host": "127.0.0.1",
+  "substitutePath": [
+    {
+      "from": "${workspaceFolder}",
+      "to": "/app"
+    }
+  ]
+}
+```
+
+### Debugging Commands for the Go Test Suites
+
 ```bash
 # Targets the Go unit tests
 make test-unit-debug
@@ -99,39 +120,70 @@ make test-integration-debug
 
 # Targets the Go E2E tests 
 make test-e2e-debug # add REBUILD=1 to rebuild the jam-build-propsdb-test image
-
-# Targets the propsdb-api service running in a debug build of jam-build-propsdb-test image
-make test-e2e-js-debug # alias for test-e2e-js DEBUG=2, full debug rebuild, then start debugger.
-
-# Same but restarts the debugger without a jam-build-propsdb-test image rebuild
-make test-e2e-js DEBUG=1
 ```
 
-### Debug the propsdb-api service with Playwright E2E Tests
+### Debugging the propsdb-api service against the Playwright E2E Tests
 
 To debug the propsdb-api service in a TestContainer:
-1. Run `make test-e2e-js DEBUG=2`.
-2. The jam-build-propsdb-test image will be built with the Delve debugger and the orchestrator will start the containers and pause.
-3. Attach your IDE debugger to `:2345`.
+1. Run `make test-e2e-js-debug` (alias for `make test-e2e-js DEBUG=2`).
+2. The jam-build-propsdb-test image will be built with the Delve debugger and the Testcontainers orchestrator will start the containers and pause.
+3. Attach your IDE debugger to `:2345` and set breakpoints.
 4. Press `Enter` in the terminal to resume the Playwright tests.
 
 > To restart debugging without rebuilding the test image, run `make test-e2e-js DEBUG=1`.
 
+```bash
+# Targets the propsdb-api service running from a debug build of jam-build-propsdb-test image
+
+make test-e2e-js-debug # alias for test-e2e-js DEBUG=2, full debug rebuild, then start debugger.
+
+# and/or:
+
+make test-e2e-js DEBUG=1 # Same, but restarts the debugger without a rebuild
+```
+
+### Debugging Coverage extraction at the end of the Testcontainer Orchestrator process
+
+To debug the coverage extraction in the Testcontainer Orchestrator:
+1. Terminal 1: Run `make test-e2e-js-cover REBUILD=1 HOST_DEBUG=1`.
+  - Follow up debugging sessions, or sessions that don't require a coverage rebuild of jam-build-propsdb-test, just use `make test-e2e-js-cover HOST_DEBUG=1`.
+2. Terminal 2: Open a second terminal and run `make test-e2e-js-orchestrator-debug`.
+3. Set breakpoints in `tests/helpers/testcontainers.go#collectCoverage` and attach your IDE debugger to `:2345`.
+4. In Terminal 2, wait until completion - 'PropsDB testcontainer started' will be displayed.
+5. In Terminal 1, Press `Enter` to resume/run the Playwright tests.
+6. In Terminal 2, Press `Enter` or `Ctrl+C` to trigger the coverage collection.
+7. Debug. Your breakpoints will be hit. When complete:
+8. In Terminal 1, Press `Enter` to exit.
+9. Kill any left over stopped `dlv` process (`pkill dlv`).
+
+> To restart debugging without rebuilding the coverage test image, run `make test-e2e-js-cover HOST_DEBUG=1`.
+
+```bash
+# Targets the coverage extraction code in the Testcontainer Orchestrator process
+
+make test-e2e-js-cover REBUILD=1 HOST_DEBUG=1 # Full coverage rebuild, then waits for input to start the Playwright tests. Omit REBUILD=1 for repeat runs.
+
+make test-e2e-js-orchestrator-debug # Run in new terminal, builds debug Testcontainers and waits for debugger attachment.
+
+# Follow the rest of the debugging instructions above.
+```
 ---
 
 ## 5. Continuous Integration
 
 In CI environments (e.g., GitHub Actions), we skip the specialized local debug targets and run:
-1. `make test-coverage` (Unit, Integration, and E2e Go tests)
-2. `make test-e2e-js-cover` (E2e Playwright tests)
+1. `make test-e2e-js-cover` (E2e Playwright tests)
+2. `make test-coverage` (Unit, Integration, and E2e Go tests)
 
 Coverage is collected and reported locally, which can be uploaded to services like Codecov.
+
+[More detail about coverage](COVERAGE.md)
 
 ---
 
 ## 6. Local Testing
 
-There are scripts to run the Playwright js tests against a build of the services running in Docker locally.
+There are scripts to run the Playwright js tests against a production build of the full service stack running in Docker locally.
 
 ### Prerequisites for Local Testing
 - Docker Desktop must be running.
@@ -139,8 +191,11 @@ There are scripts to run the Playwright js tests against a build of the services
 - Local ports used by the services to be available.
 
 ```bash
-# Example for MariaDB
+# Setup for MariaDB
+
 make DB_TYPE=mariadb docker-compose-clean # Clear out any previous containers and data
+
 make DB_TYPE=mariadb docker-compose-up # Start the containers, use BUILD=1 to rebuild the images
+
 make test-e2e-js-local # Run the playwright e2e tests against the local stack
 ```
