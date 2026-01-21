@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-integration test-e2e test-e2e-debug test-e2e-rebuild test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-local test-cache-clean test-all test-coverage report-coverage docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-unit-debug test-integration test-integration-debug test-e2e test-e2e-debug test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-js-local test-cache-clean test-all test-coverage report-coverage docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
 
 export PROJECT_ROOT := $(CURDIR)
 
@@ -105,22 +105,41 @@ test-unit: ## Run unit tests
 	@echo "Running unit tests..."
 	$(GOTEST) -v -short ./tests/unit/...
 
+test-unit-debug: ## Start debugger for unit tests, attach to :2345
+	@echo "Running unit tests in debug mode. Attach with 'dlv connect :2345' or comparable IDE launch configuration"
+	$(DLVTEST) ./tests/unit/... --headless --listen=:2345 --api-version=2 --log
+
 test-integration: ## Run integration tests (requires Docker)
 	@echo "Running integration tests..."
 	$(GOTEST) -v ./tests/integration/...
 
-test-e2e: ## Run end-to-end go tests with full stack (requires Docker)
-	@echo "Running E2E tests..."
-	$(GOTEST) -v ./tests/e2e/... -timeout 300s
+test-integration-debug: ## Start debugger for integration tests, attach to :2345
+	@echo "Running integration tests in debug mode. Attach with 'dlv connect :2345' or comparable IDE launch configuration"
+	$(DLVTEST) ./tests/integration/... --headless --listen=:2345 --api-version=2 --log
 
-test-e2e-debug: ## Start debugger for E2E go tests, attach with 'dlv connect :2345' or comparable IDE launch configuration
-	@echo "Running E2E tests in debug mode..."
-	$(DLVTEST) ./tests/e2e/... --headless --listen=:2345 --api-version=2 --log
+test-e2e: ## Run end-to-end go tests with orchestrator (requires Docker). Params: REBUILD=1 (rebuild test image)
+	@{ \
+		REBUILD_VAL=$(REBUILD); \
+		[ -z "$$REBUILD_VAL" ] && REBUILD_VAL=0; \
+		if [ "$$REBUILD_VAL" -eq 1 ]; then \
+			echo "Forcing rebuild of jam-build-propsdb-test image..."; \
+			docker rmi jam-build-propsdb-test:latest || true; \
+		fi; \
+		echo "Running E2E tests..."; \
+		$(GOTEST) -v ./tests/e2e/... -timeout 300s; \
+	}
 
-test-e2e-rebuild: ## Run E2E go tests with forced rebuild of jam-build-propsdb-test image
-	@echo "Forcing rebuild of jam-build-propsdb-test images..."
-	docker rmi jam-build-propsdb-test:latest || true
-	@$(MAKE) test-e2e
+test-e2e-debug: ## Start debugger for E2E go tests, attach to :2345. Params: REBUILD=1 (rebuild orchestrator and test image)
+	@{ \
+		REBUILD_VAL=$(REBUILD); \
+		[ -z "$$REBUILD_VAL" ] && REBUILD_VAL=0; \
+		if [ "$$REBUILD_VAL" -eq 1 ]; then \
+			echo "Forcing rebuild of jam-build-propsdb-test image..."; \
+			docker rmi jam-build-propsdb-test:latest || true; \
+		fi; \
+		echo "Running E2E tests in debug mode. Attach with 'dlv connect :2345' or comparable IDE launch configuration"; \
+		$(DLVTEST) ./tests/e2e/... --headless --listen=:2345 --api-version=2 --log; \
+	}
 
 test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
 	@{ \
@@ -134,7 +153,7 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 			echo "DEBUG_CONTAINER=true" >> .env.debug; \
 			echo "TESTCONTAINERS_BUILD_CONTEXT=." >> .env.debug; \
 			ENV_FILE_TO_USE=.env.debug; \
-			TIMEOUT=120; \
+			TIMEOUT=150; \
 		else \
 			ENV_FILE_TO_USE=$(ENV_FILE); \
 			TIMEOUT=30; \
@@ -150,7 +169,7 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 		count=0; \
 		while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 			if [ $$count -ge $$TIMEOUT ]; then \
-				echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+				echo "\nTimeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
 			fi; \
 			if [ "$$DEBUG_VAL" -gt 0 -a "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
 				echo ""; \
@@ -180,7 +199,7 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 test-e2e-js-debug: ## Run E2E tests in debug mode (alias for DEBUG=2)
 	@$(MAKE) test-e2e-js DEBUG=2
 
-test-e2e-local: ## Run E2E Playwright tests against already-running local containers.
+test-e2e-js-local: ## Run E2E Playwright tests against already-running local containers.
 	@echo "Running E2E tests against local environmental services using $(ENV_FILE)..."
 	@$(GODOTENVCMD) -f $(ENV_FILE) $(NPXCMD) playwright test --project api-chromium $(if $(filter sqlite,$(DB_TYPE)),--workers=1)
 
@@ -200,7 +219,7 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "HOST_DEBUG=true" >> .env.cover; \
 		fi; \
 		ENV_FILE_TO_USE=.env.cover; \
-		TIMEOUT=120; \
+		TIMEOUT=150; \
 		if [ "$$REBUILD_VAL" -eq 1 ]; then \
 			$(MAKE) build-testcontainers-debug; \
 		else \
@@ -234,7 +253,7 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 		\
 		echo "Cleaning up and collecting coverage..."; \
 		if [ "$(HOST_DEBUG)" = "1" ]; then \
-			echo "Please stop the debugger (Ctrl+C and 'quit' or 'exit') to trigger coverage collection, then press enter here."; \
+			echo "Press Enter or Ctrl+C in the other terminal to stop the Orchestrator and trigger coverage collection. Debug breakpoints will be hit. When complete, press enter here."; \
 			read -r dummy; \
 		else \
 			kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \

@@ -1,6 +1,6 @@
-# PropsDB Fullstack Docker Compose - propsdb, database, authorizer, cache
-# PropsDB depends on the authorizer and a database service
-# This is used for development, testing, and as a reference for how to use propsDB in an application
+# Main Compose - propsdb, database, authorizer, cache
+# Database and fragments are mixed in based on DB_TYPE from data/compose/ yaml files
+# This is used for production, development, and testing
 name: jam-build-propsdb
 services:
   # PropsDB Go Fiber Service
