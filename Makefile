@@ -93,9 +93,14 @@ clean: ## Remove build artifacts
 	rm -rf $(COVERAGE_DIR)
 	@echo "Clean complete"
 
-deps: ## Download dependencies
-	@echo "Downloading dependencies..."
-	$(GOMOD) download
+deps: ## Download dependencies. Params: UPDATE=1 (update with new versions, requires full retest)
+	@if [ -z "$(UPDATE)" ]; then \
+		echo "Downloading dependencies..."; \
+		$(GOMOD) download; \
+	else \
+	  echo "Updating dependencies..."; \
+		$(GOGET) -u ./...; \
+	fi
 	$(GOMOD) tidy
 	@echo "Dependencies updated"
 
