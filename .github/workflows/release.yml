@@ -1,0 +1,188 @@
+on:
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+          - info
+          - warning
+          - debug
+      tags:
+        description: 'Tags'
+        required: false
+        type: boolean
+  release:
+    types: [created]
+
+env:
+  NODE_VERSION: '24.12.0'
+  GO_VERSION: '1.25.5'
+
+jobs:
+  releases:
+    name: Release Jam-Build-PropsDB
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # 3.7.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # 3.12.0
+        with:
+          platforms: linux/amd64,linux/arm64
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # 6.2.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # 6.2.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Print Go Info
+        run: |
+          whereis go
+          go version
+      - name: Set VERSION Env
+        run: echo VERSION=$(basename ${GITHUB_REF}) >> ${GITHUB_ENV}
+      - name: Setup Node deps
+        run: |
+          npm ci
+          npx playwright install --with-deps
+      - name: Setup Go deps
+        run: make deps
+      - name: Log in to Docker Hub
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # 5.10.0
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/jam-build-propsdb
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+      - name: Build and Load Locally
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # 6.18.0
+        with:
+          context: .
+          load: true
+          tags: propsdb-api:test
+      - name: Run E2E Tests
+        run: |
+          cat <<EOF > docker-compose.test.yml
+          services:
+            api:
+              image: propsdb-api:test
+              ports:
+                - 3000:3000
+              environment:
+                - PORT=3000
+                - DB_TYPE=mariadb
+                - DB_HOST=db
+                - DB_PORT=3306
+                - DB_APP_DATABASE=jam_build
+                - DB_APP_USER=jbadmin
+                - DB_APP_PASSWORD=DeadBeef_Cafe_Babe_02!
+                - DB_USER=jbuser
+                - DB_PASSWORD=DeadBeef_Cafe_Babe_01!
+                - DB_APP_CONNECTION_LIMIT=${DB_APP_CONNECTION_LIMIT}
+                - DB_CONNECTION_LIMIT=5
+                - AUTHZ_URL=host.docker.internal:8080
+                - AUTHZ_CLIENT_ID=deadbeef-cafe-babe-feed-baadc0deface
+              depends_on:
+                db:
+                  condition: service_healthy
+                auth:
+                  condition: service_started
+              networks:
+                - propsdb-network
+            db:
+              image: mariadb:12.1.2
+              ports:
+                - 3306:3306
+              environment:
+                - MYSQL_ROOT_PASSWORD=DeadBeef_Cafe_Babe_01
+                - MYSQL_DATABASE=jam_build
+                - MYSQL_USER=jbadmin
+                - MYSQL_PASSWORD=DeadBeef_Cafe_Babe_02!
+                - AUTHZ_DATABASE=authorizer
+                - DB_USER=jbuser
+                - DB_PASSWORD=DeadBeef_Cafe_Babe_01!
+              healthcheck:
+                test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                start_period: 30s
+              volumes:
+                - dbdata:/var/lib/mysql
+                - ./data/initdb/mysql:/docker-entrypoint-initdb.d
+                - ./data/migrations/mysql:/docker-entrypoint-migrations.d
+              networks:
+                - propsdb-network
+            cache:
+              image: redis:8.4.0
+              ports:
+                - 6379:6379
+              command: redis-server --save 20 1 --loglevel warning
+              volumes:
+                - cache:/data
+              networks:
+                - propsdb-network
+            auth:
+              image: localnerve/authorizer:1.5.3
+              ports:
+                - 8080:8080
+              environment:
+                - ENV=production
+                - PORT=8080
+                - ADMIN_SECRET=deadbeefcafebabe04
+                - CLIENT_ID=deadbeef-cafe-babe-feed-baadc0deface
+                - DATABASE_URL=root:DeadBeef_Cafe_Babe_01@tcp(db:3306)/authorizer
+                - DATABASE_NAME=authorizer
+                - ROLES=user,admin
+                - REDIS_URL=redis://cache:6379
+              depends_on:
+                db:
+                  condition: service_healthy
+                cache:
+                  condition: service_started
+              networks:
+                - propsdb-network
+            volumes:
+              dbdata:
+              cache:
+          EOF
+          # Start the full compose container
+          docker compose -f docker-compose.test.yml up -d
+          # Wait for services (adjust sleep as needed)
+          sleep 20
+          # Run the e2e tests against the local container
+          # If this fails, the entire workflow is stopped and all resources reclaimed
+          make test-e2e-js-local
+          docker compose -f docker-compose.test.yml down
+      - name: Build and Push to Dockerhub
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # 6.18.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64          
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # 5.0.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          short-description: "Jam-build propsdb-api service image. See gh:localnerve/jam-build-propsdb for usage."
+          repository: ${{ secrets.DOCKER_USERNAME }}/jam-build-propsdb
+          readme-filepath: ./README.md

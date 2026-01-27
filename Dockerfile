@@ -5,11 +5,12 @@ ARG COVER=false
 
 # ------------------
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 ARG RESOURCE_REAPER_SESSION_ID
 LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 ARG DEBUG
 ARG COVER
+ARG TARGETARCH
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -37,21 +38,21 @@ COPY . .
 # Conditionally build with debug or coverage flags
 RUN if [ "$DEBUG" = "true" ]; then \
   echo "Building DEBUG binary"; \
-  CGO_ENABLED=0 GOOS=linux go build -gcflags="all=-N -l" -o jam-build-propsdb ./cmd/server; \
+  CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -gcflags="all=-N -l" -o jam-build-propsdb ./cmd/server; \
 elif [ "$COVER" = "true" ]; then \
   echo "Building COVER binary"; \
-  CGO_ENABLED=0 GOOS=linux go build -cover -coverpkg=./... -covermode=atomic -o jam-build-propsdb ./cmd/server; \
+  CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -cover -coverpkg=./... -covermode=atomic -o jam-build-propsdb ./cmd/server; \
 else \
   echo "Building PRODUCTION binary"; \
-  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o jam-build-propsdb ./cmd/server; \
+  CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -a -installsuffix cgo -o jam-build-propsdb ./cmd/server; \
 fi
 
 # Build the healthcheck application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o healthcheck ./cmd/healthcheck
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -a -installsuffix cgo -o healthcheck ./cmd/healthcheck
 
 # ------------------
 # Runtime stage
-FROM alpine:latest AS runtime
+FROM alpine:3.21 AS runtime
 ARG RESOURCE_REAPER_SESSION_ID
 LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 
