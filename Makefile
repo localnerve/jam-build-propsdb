@@ -225,7 +225,7 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "HOST_DEBUG=true" >> .env.cover; \
 		fi; \
 		ENV_FILE_TO_USE=.env.cover; \
-		TIMEOUT=$${CI+250}; \
+		TIMEOUT=$${CI+300}; \
 		TIMEOUT=$${TIMEOUT:-150}; \
 		echo "TEST IMAGE BUILD TIMEOUT=$$TIMEOUT"; \
 		if [ "$$REBUILD_VAL" -eq 1 ]; then \
@@ -248,6 +248,9 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 				if [ $$count -ge $$TIMEOUT ]; then \
 					echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+				fi; \
+				if [ "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
+					echo ""; \
 				fi; \
 				printf '%s' "."; \
 				sleep 1; count=`expr $$count + 1`; \
