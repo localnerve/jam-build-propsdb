@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-unit-debug test-integration test-integration-debug test-e2e test-e2e-debug test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-js-local test-cache-clean test-all test-coverage report-coverage docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-unit-debug test-integration test-integration-debug test-e2e test-e2e-debug test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-js-local test-cache-clean test-all test-coverage report-coverage docker-build docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
 
 export PROJECT_ROOT := $(CURDIR)
 
@@ -44,13 +44,14 @@ endif
 
 COMPOSE_BASE := -f docker-compose.yml
 DB_COMPOSE := $(wildcard data/compose/$(DB_TYPE).yml)
-COMPOSECMD := docker-compose $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
 
 # Commands
 GOCMD := go
 DLVCMD := dlv
 NPXCMD := npx
 GODOTENVCMD := godotenv
+COMPOSECMD := docker-compose $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
+BUILDCMD := docker buildx build
 GODOTENV := $(GODOTENVCMD) -f $(ENV_FILE)
 GOBUILD := $(GOCMD) build
 GOCLEAN := $(GOCMD) clean
@@ -337,10 +338,18 @@ $(ENV_DOCKER_FILE): $(ENV_FILE)
 	     -e 's/localhost/host.docker.internal/g' $(ENV_FILE) > $(ENV_DOCKER_FILE)
 	@# Ensure critical overrides are present and not commented out. 
 	@# We use printf to ensure we start on a new line even if $(ENV_FILE) lacks a trailing newline.
-	@sed -i '' '/^DB_TYPE=/d' $(ENV_DOCKER_FILE) || true
-	@sed -i '' '/^DB_PORT=/d' $(ENV_DOCKER_FILE) || true
+	@sed '/^DB_TYPE=/d' $(ENV_DOCKER_FILE) > $(ENV_DOCKER_FILE).tmp && mv $(ENV_DOCKER_FILE).tmp $(ENV_DOCKER_FILE) || true
+	@sed '/^DB_PORT=/d' $(ENV_DOCKER_FILE) > $(ENV_DOCKER_FILE).tmp && mv $(ENV_DOCKER_FILE).tmp $(ENV_DOCKER_FILE) || true
 	@printf "\nDB_TYPE=$(DB_TYPE)\nDB_PORT=$(DB_PORT)\n" >> $(ENV_DOCKER_FILE)
 	@echo "$(DB_TYPE)" > $(ENV_DOCKER_TYPE_FILE)
+
+docker-build: ## Build jam-build-propsdb image
+	@echo "Building the jam-build-propsdb image..."
+	docker stop propsdb-api || true
+	docker rm propsdb-api || true
+	docker rmi jam-build-propsdb:latest || true
+	$(BUILDCMD) --tag "jam-build-propsdb:latest" .
+	@echo "Build jam-build-propsdb image complete"
 
 docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose. Use BUILD=1 to force recompile.
 	@echo "Starting Docker Compose services for $(DB_TYPE)..."
