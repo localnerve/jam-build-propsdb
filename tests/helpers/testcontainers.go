@@ -29,6 +29,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -413,8 +414,11 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		// Build PropsDB builder image and add fromDockerfile to PropsDB container request
 		propsdbResourceReaperSessionID := uuid.New().String()
 
+		hostPlatform := fmt.Sprintf("linux/%s", runtime.GOARCH)
+
 		propsdbBuildArgs := map[string]*string{
 			"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+			"BUILDPLATFORM":              &hostPlatform,
 		}
 		if debugContainer == "true" {
 			propsdbBuildArgs["DEBUG"] = &debugContainer
@@ -430,7 +434,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			buildContext = "../.."
 		}
 
-		logMessage(t, "Image %s does not exist, building...", imageName)
+		logMessage(t, "Image %s does not exist, building for %s...", imageName, hostPlatform)
 		propsdbBuilderContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
 				FromDockerfile: testcontainers.FromDockerfile{
@@ -441,6 +445,8 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 					BuildArgs:  propsdbBuildArgs,
 					BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
 						opts.Target = "builder" // Build specific stage
+						opts.Version = build.BuilderBuildKit
+						opts.Platform = hostPlatform
 					},
 					PrintBuildLog: true,
 				},
