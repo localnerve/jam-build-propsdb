@@ -50,7 +50,8 @@ GOCMD := go
 DLVCMD := dlv
 NPXCMD := npx
 GODOTENVCMD := godotenv
-COMPOSECMD := docker-compose $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
+COMPOSECMD := docker compose
+MAINCOMPOSE := $(COMPOSECMD) $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
 BUILDCMD := docker buildx build
 GODOTENV := $(GODOTENVCMD) -f $(ENV_FILE)
 GOBUILD := $(GOCMD) build
@@ -360,32 +361,32 @@ docker-build: ## Build jam-build-propsdb image
 	$(BUILDCMD) --tag "jam-build-propsdb:latest" .
 	@echo "Build jam-build-propsdb image complete"
 
-docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose. Use BUILD=1 to force recompile.
+docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose. Params: BUILD=1 (force recompile), WAIT=NNN (wait timeout NNN secs).
 	@echo "Starting Docker Compose services for $(DB_TYPE)..."
-	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) up -d $(if $(BUILD),--build)
+	$(MAINCOMPOSE) --env-file $(ENV_DOCKER_FILE) up -d $(if $(BUILD),--build) $(if $(WAIT),--wait --wait-timeout $(WAIT))
 
 docker-compose-down: $(ENV_DOCKER_FILE) ## Stop all Docker Compose services
 	@echo "Stopping Docker Compose services..."
-	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) down
+	$(MAINCOMPOSE) --env-file $(ENV_DOCKER_FILE) down
 
 docker-compose-clean: $(ENV_DOCKER_FILE) ## Stop all services and remove volumes (thorough clean)
 	@echo "Stopping Docker Compose and removing volumes..."
-	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) down -v
+	$(MAINCOMPOSE) --env-file $(ENV_DOCKER_FILE) down -v
 
 docker-compose-logs: $(ENV_DOCKER_FILE) ## View Docker Compose logs (use DB_TYPE=<type> if not default)
 	@echo "Showing logs for $(DB_TYPE) configuration..."
-	$(COMPOSECMD) --env-file $(ENV_DOCKER_FILE) logs -f
+	$(MAINCOMPOSE) --env-file $(ENV_DOCKER_FILE) logs -f
 
 obs-up: ## Start observability services
 	@echo "Starting observability services..."
-	docker-compose -f docker-compose.observability.yml up -d
+	$(COMPOSECMD) -f docker-compose.observability.yml up -d
 
 obs-down: ## Stop observability services
 	@echo "Stopping observability services..."
-	docker-compose -f docker-compose.observability.yml down
+	$(COMPOSECMD) -f docker-compose.observability.yml down
 
 obs-logs: ## View observability logs
-	docker-compose -f docker-compose.observability.yml logs -f
+	$(COMPOSECMD) -f docker-compose.observability.yml logs -f
 
 swagger: ## Generate OpenAPI/Swagger documentation
 	@echo "Generating Swagger documentation..."
