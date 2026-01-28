@@ -83,10 +83,10 @@ jobs:
           # Setup the full compose container
           make DB_TYPE=mariadb docker-compose-clean
           # Start the full compose container
-          make DB_TYPE-mariadb docker-compose-up WAIT=60
+          make DB_TYPE=mariadb docker-compose-up WAIT=60
           # Run the e2e tests against the local container
           make test-e2e-js-local
-          # Stop
+          # Stop compose container
           make docker-compose-down
       - name: Build and Push to Dockerhub
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # 6.18.0
@@ -95,7 +95,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64          
+          platforms: linux/amd64,linux/arm64
       - name: Update Docker Hub Description
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # 5.0.0
         with:
