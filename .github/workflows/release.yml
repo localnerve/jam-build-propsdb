@@ -83,13 +83,10 @@ jobs:
           # Setup the full compose container
           make DB_TYPE=mariadb docker-compose-clean
           # Start the full compose container
-          make DB_TYPE-mariadb docker-compose-up
-          # Wait for services (adjust sleep as needed)
-          sleep 20
+          make DB_TYPE-mariadb docker-compose-up WAIT=60
           # Run the e2e tests against the local container
-          # If this fails, the entire workflow is stopped and all resources reclaimed
           make test-e2e-js-local
-          # Clean up
+          # Stop
           make docker-compose-down
       - name: Build and Push to Dockerhub
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # 6.18.0
