@@ -1,4 +1,4 @@
-.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-unit-debug test-integration test-integration-debug test-e2e test-e2e-debug test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-js-local test-cache-clean test-all test-coverage report-coverage docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
+.PHONY: help build build-healthcheck build-testcontainers build-testcontainers-debug clean deps test test-unit test-unit-debug test-integration test-integration-debug test-e2e test-e2e-debug test-e2e-js test-e2e-js-debug test-e2e-js-cover test-e2e-js-host-debug test-e2e-js-local test-cache-clean test-all test-coverage report-coverage docker-build docker-compose-up docker-compose-down docker-compose-clean docker-compose-logs obs-up obs-down obs-logs swagger lint fmt vet check install-tools
 
 export PROJECT_ROOT := $(CURDIR)
 
@@ -44,13 +44,14 @@ endif
 
 COMPOSE_BASE := -f docker-compose.yml
 DB_COMPOSE := $(wildcard data/compose/$(DB_TYPE).yml)
-COMPOSECMD := docker-compose $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
 
 # Commands
 GOCMD := go
 DLVCMD := dlv
 NPXCMD := npx
 GODOTENVCMD := godotenv
+COMPOSECMD := docker-compose $(COMPOSE_BASE) $(if $(DB_COMPOSE),-f $(DB_COMPOSE))
+BUILDCMD := docker buildx build
 GODOTENV := $(GODOTENVCMD) -f $(ENV_FILE)
 GOBUILD := $(GOCMD) build
 GOCLEAN := $(GOCMD) clean
@@ -93,9 +94,14 @@ clean: ## Remove build artifacts
 	rm -rf $(COVERAGE_DIR)
 	@echo "Clean complete"
 
-deps: ## Download dependencies
-	@echo "Downloading dependencies..."
-	$(GOMOD) download
+deps: ## Download dependencies. Params: UPDATE=1 (update with new versions, requires full retest)
+	@if [ -z "$(UPDATE)" ]; then \
+		echo "Downloading dependencies..."; \
+		$(GOMOD) download; \
+	else \
+	  echo "Updating dependencies..."; \
+		$(GOGET) -u ./...; \
+	fi
 	$(GOMOD) tidy
 	@echo "Dependencies updated"
 
@@ -164,17 +170,18 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 			$(MAKE) build-testcontainers; \
 		fi; \
 		echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
+		rm -f $(TESTCONTAINERS_LOG); \
+		touch $(TESTCONTAINERS_LOG); \
+		tail -f $(TESTCONTAINERS_LOG) & \
+		TAILPID=$$!; \
+		trap "kill \$$TCPID \$$TAILPID 2>/dev/null" EXIT; \
 		./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > $(TESTCONTAINERS_LOG) 2>&1 & \
 		TCPID=$$!; \
 		count=0; \
 		while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 			if [ $$count -ge $$TIMEOUT ]; then \
-				echo "\nTimeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+				echo "\nTimeout: Failed to start"; exit 1; \
 			fi; \
-			if [ "$$DEBUG_VAL" -gt 0 -a "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
-				echo ""; \
-			fi; \
-			printf '%s' "."; \
 			sleep 1; count=`expr $$count + 1`; \
 		done; \
 		if [ "$$DEBUG_VAL" -gt 0 ]; then \
@@ -191,7 +198,8 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 		EXIT_CODE=$$?; \
 		\
 		echo "Cleaning up..."; \
-		kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
+		kill -TERM $$TCPID 2>/dev/null; \
+		wait $$TCPID 2>/dev/null; \
 		\
 		exit $$EXIT_CODE; \
 	}
@@ -219,7 +227,9 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "HOST_DEBUG=true" >> .env.cover; \
 		fi; \
 		ENV_FILE_TO_USE=.env.cover; \
-		TIMEOUT=150; \
+		TIMEOUT=$${CI+210}; \
+		TIMEOUT=$${TIMEOUT:-150}; \
+		echo "TEST IMAGE BUILD TIMEOUT=$$TIMEOUT"; \
 		if [ "$$REBUILD_VAL" -eq 1 ]; then \
 			$(MAKE) build-testcontainers-debug; \
 		else \
@@ -234,14 +244,18 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			read -r dummy; \
 		else \
 			echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
+			rm -f $(TESTCONTAINERS_LOG); \
+			touch $(TESTCONTAINERS_LOG); \
+			tail -f $(TESTCONTAINERS_LOG) & \
+			TAILPID=$$!; \
+			trap "kill \$$TCPID \$$TAILPID 2>/dev/null" EXIT; \
 			./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > $(TESTCONTAINERS_LOG) 2>&1 & \
 			TCPID=$$!; \
 			count=0; \
 			while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 				if [ $$count -ge $$TIMEOUT ]; then \
-					echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+					echo "Timeout: Failed to start"; exit 1; \
 				fi; \
-				printf '%s' "."; \
 				sleep 1; count=`expr $$count + 1`; \
 			done; \
 		fi; \
@@ -256,7 +270,8 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "Press Enter or Ctrl+C in the other terminal to stop the Orchestrator and trigger coverage collection. Debug breakpoints will be hit. When complete, press enter here."; \
 			read -r dummy; \
 		else \
-			kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
+			kill -TERM $$TCPID 2>/dev/null; \
+			wait $$TCPID 2>/dev/null; \
 		fi; \
 		sleep 3; # wait for coverage collection to finish\
 		echo "Coverage extraction log can be found in $(TESTCONTAINERS_LOG)"; \
@@ -332,10 +347,18 @@ $(ENV_DOCKER_FILE): $(ENV_FILE)
 	     -e 's/localhost/host.docker.internal/g' $(ENV_FILE) > $(ENV_DOCKER_FILE)
 	@# Ensure critical overrides are present and not commented out. 
 	@# We use printf to ensure we start on a new line even if $(ENV_FILE) lacks a trailing newline.
-	@sed -i '' '/^DB_TYPE=/d' $(ENV_DOCKER_FILE) || true
-	@sed -i '' '/^DB_PORT=/d' $(ENV_DOCKER_FILE) || true
+	@sed '/^DB_TYPE=/d' $(ENV_DOCKER_FILE) > $(ENV_DOCKER_FILE).tmp && mv $(ENV_DOCKER_FILE).tmp $(ENV_DOCKER_FILE) || true
+	@sed '/^DB_PORT=/d' $(ENV_DOCKER_FILE) > $(ENV_DOCKER_FILE).tmp && mv $(ENV_DOCKER_FILE).tmp $(ENV_DOCKER_FILE) || true
 	@printf "\nDB_TYPE=$(DB_TYPE)\nDB_PORT=$(DB_PORT)\n" >> $(ENV_DOCKER_FILE)
 	@echo "$(DB_TYPE)" > $(ENV_DOCKER_TYPE_FILE)
+
+docker-build: ## Build jam-build-propsdb image
+	@echo "Building the jam-build-propsdb image..."
+	docker stop propsdb-api || true
+	docker rm propsdb-api || true
+	docker rmi jam-build-propsdb:latest || true
+	$(BUILDCMD) --tag "jam-build-propsdb:latest" .
+	@echo "Build jam-build-propsdb image complete"
 
 docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose. Use BUILD=1 to force recompile.
 	@echo "Starting Docker Compose services for $(DB_TYPE)..."

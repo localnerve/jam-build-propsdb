@@ -73,6 +73,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      cache:
+        condition: service_started
     networks:
       - propsdb-network
     restart: unless-stopped

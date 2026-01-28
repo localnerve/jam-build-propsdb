@@ -29,6 +29,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +44,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/google/uuid"
 	"github.com/localnerve/jam-build-propsdb/data"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
@@ -51,12 +51,11 @@ import (
 )
 
 type TestContainers struct {
-	Network                 *testcontainers.DockerNetwork
-	DBContainer             testcontainers.Container
-	AuthorizerContainer     testcontainers.Container
-	PropsDBContainer        testcontainers.Container
-	PropsDBBuilderContainer testcontainers.Container
-	CoverageDir             string
+	Network             *testcontainers.DockerNetwork
+	DBContainer         testcontainers.Container
+	AuthorizerContainer testcontainers.Container
+	PropsDBContainer    testcontainers.Container
+	CoverageDir         string
 }
 
 func (tc *TestContainers) Terminate(t *testing.T) {
@@ -86,11 +85,6 @@ func (tc *TestContainers) Terminate(t *testing.T) {
 		}
 		if err := tc.PropsDBContainer.Terminate(ctx); err != nil {
 			logMessage(t, "Failed to terminate PropsDB: %v", err)
-		}
-	}
-	if tc.PropsDBBuilderContainer != nil {
-		if err := tc.PropsDBBuilderContainer.Terminate(ctx); err != nil {
-			logMessage(t, "Failed to terminate PropsDB Builder: %v", err)
 		}
 	}
 	if tc.AuthorizerContainer != nil {
@@ -410,11 +404,10 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	}
 
 	if !imageExists {
-		// Build PropsDB builder image and add fromDockerfile to PropsDB container request
-		propsdbResourceReaperSessionID := uuid.New().String()
+		hostPlatform := fmt.Sprintf("linux/%s", runtime.GOARCH)
 
 		propsdbBuildArgs := map[string]*string{
-			"RESOURCE_REAPER_SESSION_ID": &propsdbResourceReaperSessionID,
+			"BUILDPLATFORM": &hostPlatform,
 		}
 		if debugContainer == "true" {
 			propsdbBuildArgs["DEBUG"] = &debugContainer
@@ -430,29 +423,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			buildContext = "../.."
 		}
 
-		logMessage(t, "Image %s does not exist, building...", imageName)
-		propsdbBuilderContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				FromDockerfile: testcontainers.FromDockerfile{
-					Context:    buildContext,
-					Dockerfile: "Dockerfile",
-					Repo:       "jam-build-propsdb-test-builder",
-					Tag:        "latest",
-					BuildArgs:  propsdbBuildArgs,
-					BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
-						opts.Target = "builder" // Build specific stage
-					},
-					PrintBuildLog: true,
-				},
-			},
-			Started: false,
-		})
-		if err != nil {
-			testContainers.Terminate(t)
-			exitWithError(t, err, "Failed to build propsdb-test-builder")
-		}
-		testContainers.PropsDBBuilderContainer = propsdbBuilderContainer
-
+		logMessage(t, "Image %s does not exist, building for %s...", imageName, hostPlatform)
 		imageNameParts := strings.Split(imageName, ":")
 		fromDockerfile := testcontainers.FromDockerfile{
 			Context:    buildContext,
@@ -463,6 +434,8 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			BuildArgs:  propsdbBuildArgs,
 			BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
 				opts.Target = "runtime"
+				opts.Version = build.BuilderBuildKit
+				opts.Platform = hostPlatform
 			},
 			PrintBuildLog: true,
 		}

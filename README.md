@@ -5,23 +5,45 @@ A high-performance data service built with Go and Fiber, serving as a drop-in re
 ## Features
 
 - 🚀 **High Performance**: Built with Go Fiber for maximum throughput
-- 🗄️ **Multi-Database Support**: Works with MariaDB, MySQL, PostgreSQL, SQLite, and SQL Server via `DB_TYPE` configuration. See [this document](docs/DATABASE.md) for configuration details.
+- 🗄️ **Multi-Database Support**: Works with MariaDB, MySQL, PostgreSQL, SQLite, and SQL Server via `DB_TYPE` configuration. [Configuration details](docs/DATABASE.md)
 - 🔐 **Authentication**: Integrated with Authorizer using `authorizer-go` SDK
-- 📦 **API Compatibility**: Drop-in replacement for the Node.js Express service
+- 📦 **API Compatibility**: Drop-in replacement for the Node.js Express service. [API details](#api-endpoints)
 - 🔄 **Version Control**: Optimistic locking with `E_VERSION` conflict detection
 - 🐳 **Docker Ready**: Multi-stage Dockerfile for containerized deployments
-- 🧪 **Testable**: Designed for unit, integration, and e2e testing with testcontainers
+- 🧪 **Testable**: Designed for unit, integration, and e2e testing with testcontainers. [Testing details](docs/TESTING.md)
 
 ## Quick Start
 
-### Prerequisites
+### Public Docker Image
+
+  * https://hub.docker.com/r/localnerve/jam-build-propsdb
+    - `localnerve/jam-build-propsdb:latest`
+
+  * Environment:
+    - PORT: The exposed port to the propsdb-api
+    - DB_TYPE: The database type [mariadb | mysql | mssql | postgres | sqlite]
+    - DB_HOST: The hostname of the database service
+    - DB_PORT: The database service port
+    - DB_APP_DATABASE: The property database name
+    - DB_APP_USER: The application user name
+    - DB_APP_PASSWORD: The application user password
+    - DB_USER: The user user name
+    - DB_PASSWORD: The user user password
+    - DB_APP_CONNECTION_LIMIT: The application connection pool limit
+    - DB_CONNECTION_LIMIT: The user connection pool limit
+    - AUTHZ_URL: The url to the authorizer service
+    - AUTHZ_CLIENT_ID: The client ID of the authorizer service
+
+### Development
+
+#### Prerequisites
 
 - Go 1.21 or higher
+- Docker Desktop
 - Node 24.12.0 or higher
 - GNU Make 4.4.1
-- Docker Desktop
 
-### Installation
+#### Installation
 
 1. Clone the repository:
 ```bash
@@ -32,16 +54,18 @@ cd jam-build-propsdb
 2. Install dependencies:
 ```bash
 make deps
+make install-tools
 ```
 
-3. Build and run the service suite:
+3. Build and run the full service:
 ```bash
 make docker-compose-up
 ```
 
 The service will start on `http://localhost:3000`.
 
-#### All Ports Used
+#### Ports
+These are the ports used by default:
 
 * Service ports: 3000 (api), 6379 (cache), 8080 (authorizer)
 * Typical database ports (depends on `DB_TYPE`, defaults to `mariadb`):
@@ -153,9 +177,6 @@ make test-integration
 # End-to-end service health tests (requires Docker)
 make test-e2e
 
-# Unit, Integration, and End-to-end tests with coverage (requires Docker)
-make test-coverage
-
 # Full stack end-to-end tests (requires Docker)
 make test-e2e-js # Params: DEBUG=1 (debug, no rebuild), DEBUG=2 (debug, full rebuild)
 
@@ -169,15 +190,20 @@ Many more tests are available in the Makefile, see the [testing documentation](d
 ### Building
 
 ```bash
+# Build the api service binary
+make build
 
-# build the api service
-make build 
-
-# build the healthcheck binary
+# Build the healthcheck binary
 make build-healthcheck
 
-# build the testcontainers binary
+# Build the testcontainers binary
 make build-testcontainers
+
+# Build the docker image
+make docker-build
+
+# Build and run the entire composition
+make DB_TYPE=mariadb docker-compose-up # DB_TYPE = mariadb | mysql | mssql | postgres | sqlite
 
 ```
 
