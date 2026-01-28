@@ -28,7 +28,9 @@ jobs:
         npm ci
         npx playwright install --with-deps
     - name: Setup Go deps
-      run: make deps
+      run: |
+        make deps
+        make install-tools
     - name: Run Go Checks
       run: make check
     # Pre-pull is requied because BuildKit cannot establish a remote session tunnel via testcontainers-go
