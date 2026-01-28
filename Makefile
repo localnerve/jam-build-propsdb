@@ -227,7 +227,7 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "HOST_DEBUG=true" >> .env.cover; \
 		fi; \
 		ENV_FILE_TO_USE=.env.cover; \
-		TIMEOUT=$${CI+400}; \
+		TIMEOUT=$${CI+210}; \
 		TIMEOUT=$${TIMEOUT:-150}; \
 		echo "TEST IMAGE BUILD TIMEOUT=$$TIMEOUT"; \
 		if [ "$$REBUILD_VAL" -eq 1 ]; then \
