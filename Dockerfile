@@ -62,16 +62,14 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binaries from builder
-COPY --from=builder /app/jam-build-propsdb .
-COPY --from=builder /app/healthcheck .
+COPY --from=builder --chown=appuser:appuser /app/jam-build-propsdb .
+COPY --from=builder --chown=appuser:appuser /app/healthcheck .
 # Copy dlv if it was built
 COPY --from=builder /go/bin/dlv* /usr/local/bin/
 
 # Create coverage directory
-RUN mkdir -p /app/coverage
-
-# Change ownership
-RUN chown -R appuser:appuser /app
+RUN mkdir -p /app/coverage && \
+  chown -R appuser:appuser /app/coverage
 
 # Switch to non-root user
 USER appuser
