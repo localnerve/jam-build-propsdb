@@ -31,8 +31,14 @@ jobs:
       run: make deps
     - name: Run Go Checks
       run: make check
-    - name: Run Playwright E2E # This builds the cover test image
-      run: make test-e2e-js-cover
+    # Pre-pull is requied because BuildKit cannot establish a remote session tunnel via testcontainers-go
+    # Image Versions here MUST match Dockerfile and this runner must be amd64
+    - name: Pre-pull base images
+      run: |
+        docker pull golang:1.25-alpine --platform linux/amd64
+        docker pull alpine:3.21 --platform linux/amd64
+    - name: Run Playwright E2E
+      run: make test-e2e-js-cover # This builds the cover test image
     - name: Run Go Unit
       run: make test-unit
     - name: Run Go Integration
