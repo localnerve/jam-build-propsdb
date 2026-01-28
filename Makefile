@@ -170,17 +170,18 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 			$(MAKE) build-testcontainers; \
 		fi; \
 		echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
+		rm -f $(TESTCONTAINERS_LOG); \
+		touch $(TESTCONTAINERS_LOG); \
+		tail -f $(TESTCONTAINERS_LOG) & \
+		TAILPID=$$!; \
+		trap "kill \$$TCPID \$$TAILPID 2>/dev/null" EXIT; \
 		./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > $(TESTCONTAINERS_LOG) 2>&1 & \
 		TCPID=$$!; \
 		count=0; \
 		while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 			if [ $$count -ge $$TIMEOUT ]; then \
-				echo "\nTimeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+				echo "\nTimeout: Failed to start"; exit 1; \
 			fi; \
-			if [ "$$DEBUG_VAL" -gt 0 -a "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
-				echo ""; \
-			fi; \
-			printf '%s' "."; \
 			sleep 1; count=`expr $$count + 1`; \
 		done; \
 		if [ "$$DEBUG_VAL" -gt 0 ]; then \
@@ -197,7 +198,8 @@ test-e2e-js: ## Run end-to-end tests with full stack. Params: DEBUG=1 (debug, no
 		EXIT_CODE=$$?; \
 		\
 		echo "Cleaning up..."; \
-		kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
+		kill -TERM $$TCPID 2>/dev/null; \
+		wait $$TCPID 2>/dev/null; \
 		\
 		exit $$EXIT_CODE; \
 	}
@@ -242,17 +244,18 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			read -r dummy; \
 		else \
 			echo "Starting testcontainers with $$ENV_FILE_TO_USE..." ; \
+			rm -f $(TESTCONTAINERS_LOG); \
+			touch $(TESTCONTAINERS_LOG); \
+			tail -f $(TESTCONTAINERS_LOG) & \
+			TAILPID=$$!; \
+			trap "kill \$$TCPID \$$TAILPID 2>/dev/null" EXIT; \
 			./$(TESTCONTAINERS_BINARY) -f $$ENV_FILE_TO_USE > $(TESTCONTAINERS_LOG) 2>&1 & \
 			TCPID=$$!; \
 			count=0; \
 			while ! grep -q "PropsDB testcontainer started" $(TESTCONTAINERS_LOG); do \
 				if [ $$count -ge $$TIMEOUT ]; then \
-					echo "Timeout: Failed to start"; kill $$TCPID 2>/dev/null; exit 1; \
+					echo "Timeout: Failed to start"; exit 1; \
 				fi; \
-				if [ "$$count" -ne 0 -a "`expr $$count % 20`" -eq 0 ]; then \
-					echo ""; \
-				fi; \
-				printf '%s' "."; \
 				sleep 1; count=`expr $$count + 1`; \
 			done; \
 		fi; \
@@ -267,7 +270,8 @@ test-e2e-js-cover: ## Run E2E tests with coverage collection. Params: REBUILD=1 
 			echo "Press Enter or Ctrl+C in the other terminal to stop the Orchestrator and trigger coverage collection. Debug breakpoints will be hit. When complete, press enter here."; \
 			read -r dummy; \
 		else \
-			kill $$TCPID 2>/dev/null || pkill -f $(TESTCONTAINERS_BINARY) || true; \
+			kill -TERM $$TCPID 2>/dev/null; \
+			wait $$TCPID 2>/dev/null; \
 		fi; \
 		sleep 3; # wait for coverage collection to finish\
 		echo "Coverage extraction log can be found in $(TESTCONTAINERS_LOG)"; \

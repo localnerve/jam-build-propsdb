@@ -1,5 +1,4 @@
 # Build arguments
-ARG RESOURCE_REAPER_SESSION_ID="00000000-0000-0000-0000-000000000000"
 ARG DEBUG=false
 ARG COVER=false
 ARG BUILDPLATFORM
@@ -7,8 +6,6 @@ ARG BUILDPLATFORM
 # ------------------
 # Build stage
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
-ARG RESOURCE_REAPER_SESSION_ID
-LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 ARG DEBUG
 ARG COVER
 ARG TARGETARCH
@@ -54,8 +51,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -a -installsuffix cgo -
 # ------------------
 # Runtime stage
 FROM alpine:3.21 AS runtime
-ARG RESOURCE_REAPER_SESSION_ID
-LABEL "org.testcontainers.resource-reaper-session"=$RESOURCE_REAPER_SESSION_ID
 
 # Install ca-certificates for HTTPS and wget for health checks
 RUN apk --no-cache add ca-certificates wget

@@ -69,13 +69,11 @@ example
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP, syscall.SIGQUIT)
 
 	var testContainers *helpers.TestContainers
-	go func() {
-		var err error
-		testContainers, err = helpers.CreateAllTestContainers(nil)
-		if err != nil {
-			log.Fatalf("Failed to create test containers: %v\n", err)
-		}
-	}()
+	var err error
+	testContainers, err = helpers.CreateAllTestContainers(nil)
+	if err != nil {
+		log.Fatalf("Failed to create test containers: %v\n", err)
+	}
 
 	// Wait for signal or interactive termination
 	if os.Getenv("HOST_DEBUG") == "true" {
