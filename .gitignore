@@ -51,6 +51,7 @@ coverage.txt
 coverage.html
 *.coverprofile
 test-results/
+.auth
 
 # Temporary files
 tmp/
