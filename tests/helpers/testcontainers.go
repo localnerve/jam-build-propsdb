@@ -420,7 +420,12 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 		buildContext := os.Getenv("TESTCONTAINERS_BUILD_CONTEXT")
 		if buildContext == "" {
-			buildContext = "../.."
+			_, filename, _, ok := runtime.Caller(0)
+			if ok {
+				buildContext = filepath.Join(filepath.Dir(filename), "..", "..")
+			} else {
+				buildContext = "../.."
+			}
 		}
 
 		logMessage(t, "Image %s does not exist, building for %s...", imageName, hostPlatform)
