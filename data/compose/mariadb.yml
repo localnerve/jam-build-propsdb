@@ -1,6 +1,6 @@
 services:
   database:
-    image: ${DB_IMAGE:-mariadb:12.1.2}
+    image: ${DB_IMAGE:-mariadb:12.2.2}
     container_name: propsdb-database
     ports:
       - "${DB_PORT:-3306}:${DB_PORT:-3306}"
