@@ -6,7 +6,7 @@ PropsDB is designed to be database-agnostic. However, since different database e
 
 | DB_TYPE | Image | Default Port | Internal Data Path | Primary Env Vars | Healthcheck Command |
 |---------|-------|--------------|--------------------|------------------|---------------------|
-| **mariadb** | `mariadb:12.1.2` | 3306 | `/var/lib/mysql` | `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD` | `healthcheck.sh --connect --innodb_initialized` |
+| **mariadb** | `mariadb:12.2.2` | 3306 | `/var/lib/mysql` | `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD` | `healthcheck.sh --connect --innodb_initialized` |
 | **mysql** | `mysql:8.4` | 3306 | `/var/lib/mysql` | `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD` | `mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD}` |
 | **postgres** | `postgres:18-alpine` | 5432 | `/var/lib/postgresql/data` | `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_USER` | `pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}` |
 | **mssql** | `mcr.microsoft.com/mssql/server:2022-latest` | 1433 | `/var/opt/mssql` | `ACCEPT_EULA=Y`, `MSSQL_SA_PASSWORD` | `/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ${MSSQL_SA_PASSWORD} -Q "SELECT 1"` |
