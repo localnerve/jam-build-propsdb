@@ -19,7 +19,7 @@ func (j JSON) Value() (driver.Value, error) {
 }
 
 // Scan promotes the embedded JSON's Scan method
-func (j *JSON) Scan(value interface{}) error {
+func (j *JSON) Scan(value any) error {
 	return j.JSON.Scan(value)
 }
 

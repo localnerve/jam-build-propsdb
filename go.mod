@@ -1,6 +1,6 @@
 module github.com/localnerve/jam-build-propsdb
 
-go 1.25.5
+go 1.26.0
 
 require (
 	github.com/ansrivas/fiberprometheus/v2 v2.16.0

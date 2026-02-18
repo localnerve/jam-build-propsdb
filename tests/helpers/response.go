@@ -35,7 +35,7 @@ func AssertStatus(t *testing.T, resp *http.Response, expected int) {
 }
 
 // ParseJSON decodes the response body into the target
-func ParseJSON(t *testing.T, resp *http.Response, target interface{}) {
+func ParseJSON(t *testing.T, resp *http.Response, target any) {
 	t.Helper()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

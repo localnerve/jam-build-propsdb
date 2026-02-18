@@ -169,7 +169,7 @@ func testPublicAPIAccess(t *testing.T, baseURL string) {
 	}
 
 	// Verify response is valid JSON
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Errorf("Response is not valid JSON: %v", err)
 	}

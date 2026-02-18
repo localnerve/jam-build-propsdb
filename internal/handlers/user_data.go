@@ -53,7 +53,7 @@ func getUserID(c *fiber.Ctx) (string, error) {
 	}
 
 	// Fallback to map[string]interface{}
-	userMap, ok := user.(map[string]interface{})
+	userMap, ok := user.(map[string]any)
 	if !ok {
 		return "", fmt.Errorf("invalid user data format: %T", user)
 	}

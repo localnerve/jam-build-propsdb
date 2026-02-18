@@ -214,7 +214,7 @@ func testCreateAndRetrieveDocument(t *testing.T, db *gorm.DB) {
 	collections := []services.CollectionInput{
 		{
 			Collection: "config",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"theme":    "dark",
 				"language": "en",
 				"count":    42,
@@ -222,7 +222,7 @@ func testCreateAndRetrieveDocument(t *testing.T, db *gorm.DB) {
 		},
 		{
 			Collection: "settings",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"enabled": true,
 			},
 		},
@@ -248,7 +248,7 @@ func testCreateAndRetrieveDocument(t *testing.T, db *gorm.DB) {
 		t.Fatal("Expected app1 in result")
 	}
 
-	docMap := result["app1"].(map[string]interface{})
+	docMap := result["app1"].(map[string]any)
 	if docMap["__version"] != "1" {
 		t.Errorf("Expected version 1, got %v", docMap["__version"])
 	}
@@ -264,7 +264,7 @@ func testVersionControl(t *testing.T, db *gorm.DB) {
 	collections := []services.CollectionInput{
 		{
 			Collection: "data",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"value": "initial",
 			},
 		},
@@ -299,14 +299,14 @@ func testDeleteOperations(t *testing.T, db *gorm.DB) {
 	collections := []services.CollectionInput{
 		{
 			Collection: "coll1",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"prop1": "value1",
 				"prop2": "value2",
 			},
 		},
 		{
 			Collection: "coll2",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"prop3": "value3",
 			},
 		},
@@ -329,7 +329,7 @@ func testDeleteOperations(t *testing.T, db *gorm.DB) {
 		t.Fatalf("Failed to retrieve document: %v", err)
 	}
 
-	docMap := result["deletetest"].(map[string]interface{})
+	docMap := result["deletetest"].(map[string]any)
 	if docMap["coll1"] != nil {
 		t.Error("Expected coll1 to be deleted")
 	}

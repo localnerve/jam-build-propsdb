@@ -36,8 +36,8 @@ func parseCollections(c *fiber.Ctx) []string {
 	for key, value := range args.All() {
 		if string(key) == "collections" {
 			// Split by comma in case the value itself is comma-separated
-			vals := strings.Split(string(value), ",")
-			for _, v := range vals {
+			vals := strings.SplitSeq(string(value), ",")
+			for v := range vals {
 				v = strings.TrimSpace(v)
 				if v != "" {
 					collectionMap[v] = struct{}{}
@@ -60,7 +60,7 @@ func parseCollections(c *fiber.Ctx) []string {
 
 // hasContent checks if the result map contains any non-empty properties
 // ignoring metadata like "__version"
-func hasContent(result map[string]interface{}) bool {
+func hasContent(result map[string]any) bool {
 	if result == nil {
 		return false
 	}
@@ -74,7 +74,7 @@ func hasContent(result map[string]interface{}) bool {
 		// Check if value is non-empty
 		if value != nil {
 			// If it's a map (nested collection/doc), check recursively
-			if vMap, ok := value.(map[string]interface{}); ok {
+			if vMap, ok := value.(map[string]any); ok {
 				if hasContent(vMap) {
 					return true
 				}
@@ -105,7 +105,7 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.Uint() == 0
 	case reflect.Float32, reflect.Float64:
 		return v.Float() == 0
-	case reflect.Interface, reflect.Ptr:
+	case reflect.Interface, reflect.Pointer:
 		return v.IsNil()
 	}
 	return false

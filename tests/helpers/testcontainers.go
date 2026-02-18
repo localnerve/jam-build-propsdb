@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -164,8 +165,8 @@ func (tc *TestContainers) collectCoverage(t *testing.T) {
 		name := header.Name
 		relPath := ""
 
-		if idx := strings.Index(name, "coverage/"); idx != -1 {
-			relPath = name[idx+len("coverage/"):]
+		if _, after, ok := strings.Cut(name, "coverage/"); ok {
+			relPath = after
 		} else if name == "coverage" || name == "coverage/" || name == "." || name == "./" {
 			continue // Skip root
 		} else {
@@ -406,8 +407,14 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	if !imageExists {
 		hostPlatform := fmt.Sprintf("linux/%s", runtime.GOARCH)
 
+		goVersion := os.Getenv("GO_VERSION")
+		if goVersion == "" {
+			goVersion = "1.26" // Default fallback
+		}
+
 		propsdbBuildArgs := map[string]*string{
 			"BUILDPLATFORM": &hostPlatform,
+			"GO_VERSION":    &goVersion,
 		}
 		if debugContainer == "true" {
 			propsdbBuildArgs["DEBUG"] = &debugContainer
@@ -439,7 +446,6 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			BuildArgs:  propsdbBuildArgs,
 			BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
 				opts.Target = "runtime"
-				opts.Version = build.BuilderBuildKit
 				opts.Platform = hostPlatform
 			},
 			PrintBuildLog: true,
@@ -501,7 +507,7 @@ func performMySqlDBInit(t *testing.T, testContainers *TestContainers, dbHost str
 	defer db.Close()
 
 	// Wait for connection to be really ready
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		err = db.Ping()
 		if err == nil {
 			break
@@ -650,10 +656,8 @@ func imageExists(ctx context.Context, imageName string) (bool, error) {
 	}
 
 	for _, image := range images {
-		for _, tag := range image.RepoTags {
-			if tag == imageName {
-				return true, nil
-			}
+		if slices.Contains(image.RepoTags, imageName) {
+			return true, nil
 		}
 	}
 
