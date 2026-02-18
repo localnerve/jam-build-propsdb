@@ -68,7 +68,7 @@ func InitAuthorizer(cfg *config.Config, requestProtocol, requestHost string) err
 }
 
 // ValidateSession validates a session cookie or JWT for the given roles
-func ValidateSession(token string, roles []string) (map[string]interface{}, error) {
+func ValidateSession(token string, roles []string) (map[string]any, error) {
 	if authClient == nil {
 		return nil, fmt.Errorf("authorizer client not initialized")
 	}
@@ -115,7 +115,7 @@ func ValidateSession(token string, roles []string) (map[string]interface{}, erro
 			return nil, fmt.Errorf("failed to fetch user profile: %w", err)
 		}
 
-		return map[string]interface{}{
+		return map[string]any{
 			"is_valid": true,
 			"user":     user,
 		}, nil
@@ -137,7 +137,7 @@ func ValidateSession(token string, roles []string) (map[string]interface{}, erro
 	}
 
 	// Return user data
-	return map[string]interface{}{
+	return map[string]any{
 		"is_valid": res.IsValid,
 		"user":     res.User,
 	}, nil

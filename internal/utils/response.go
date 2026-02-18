@@ -27,7 +27,7 @@ import (
 )
 
 // SuccessResponse sends a standard success response
-func SuccessResponse(c *fiber.Ctx, data interface{}, status int) error {
+func SuccessResponse(c *fiber.Ctx, data any, status int) error {
 	return c.Status(status).JSON(data)
 }
 

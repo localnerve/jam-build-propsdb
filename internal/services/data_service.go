@@ -33,12 +33,12 @@ import (
 
 // DocumentResult represents the API output format
 // Structure: { documentName: { "__version": "1", collectionName: { propName: propValue }}}
-type DocumentResult map[string]interface{}
+type DocumentResult map[string]any
 
 // CollectionInput represents input for upsert operations
 type CollectionInput struct {
-	Collection string                 `json:"collection"`
-	Properties map[string]interface{} `json:"properties,omitempty"`
+	Collection string         `json:"collection"`
+	Properties map[string]any `json:"properties,omitempty"`
 }
 
 // DeleteCollectionInput represents input for delete operations
@@ -223,13 +223,13 @@ func reduceApplicationDocuments(docs []models.ApplicationDocument) DocumentResul
 		// but typically getting the doc itself is fine.
 		// However, the previous "not found" logic often triggered on empty sets.
 
-		docMap := make(map[string]interface{})
+		docMap := make(map[string]any)
 		docMap["__version"] = fmt.Sprintf("%d", doc.DocumentVersion)
 
 		for _, coll := range doc.Collections {
-			collMap := make(map[string]interface{})
+			collMap := make(map[string]any)
 			for _, prop := range coll.Properties {
-				var value interface{}
+				var value any
 				if err := json.Unmarshal(prop.PropertyValue.JSON, &value); err == nil {
 					collMap[prop.PropertyName] = value
 				}
@@ -252,13 +252,13 @@ func reduceUserDocuments(docs []models.UserDocument) DocumentResult {
 	output := make(DocumentResult)
 
 	for _, doc := range docs {
-		docMap := make(map[string]interface{})
+		docMap := make(map[string]any)
 		docMap["__version"] = fmt.Sprintf("%d", doc.DocumentVersion)
 
 		for _, coll := range doc.Collections {
-			collMap := make(map[string]interface{})
+			collMap := make(map[string]any)
 			for _, prop := range coll.Properties {
-				var value interface{}
+				var value any
 				if err := json.Unmarshal(prop.PropertyValue.JSON, &value); err == nil {
 					collMap[prop.PropertyName] = value
 				}

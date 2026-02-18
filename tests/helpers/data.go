@@ -40,7 +40,7 @@ func CreateTestDocument(t *testing.T, db *gorm.DB, name string, version uint64) 
 }
 
 // CreateTestCollection creates a collection with properties
-func CreateTestCollection(t *testing.T, db *gorm.DB, docName, colName string, properties map[string]interface{}) {
+func CreateTestCollection(t *testing.T, db *gorm.DB, docName, colName string, properties map[string]any) {
 	var doc models.ApplicationDocument
 	if err := db.Where("document_name = ?", docName).First(&doc).Error; err != nil {
 		t.Fatalf("Failed to find document %s: %v", docName, err)

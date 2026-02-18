@@ -103,7 +103,7 @@ func TestGetAppProperties(t *testing.T) {
 	}
 
 	// Parse response
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
@@ -124,12 +124,12 @@ func TestSetAppProperties(t *testing.T) {
 	app.Post("/api/data/app/:document", handler.SetAppProperties)
 
 	// Prepare request body
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"version": 0,
 		"collections": []services.CollectionInput{
 			{
 				Collection: "testcoll",
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"prop1": "value1",
 					"prop2": 123,
 				},
@@ -152,7 +152,7 @@ func TestSetAppProperties(t *testing.T) {
 	}
 
 	// Parse response
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
@@ -184,12 +184,12 @@ func TestVersionConflict(t *testing.T) {
 	app.Post("/api/data/app/:document", handler.SetAppProperties)
 
 	// Try to update with wrong version
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"version": 0, // Wrong version (should be 1)
 		"collections": []services.CollectionInput{
 			{
 				Collection: "testcoll",
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"prop1": "value1",
 				},
 			},
@@ -211,7 +211,7 @@ func TestVersionConflict(t *testing.T) {
 	}
 
 	// Parse response
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}

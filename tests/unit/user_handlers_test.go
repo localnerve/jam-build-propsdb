@@ -89,7 +89,7 @@ func TestGetUserProperties_Empty(t *testing.T) {
 	app := fiber.New()
 	// Mock auth middleware to set user in context
 	app.Use(func(c *fiber.Ctx) error {
-		c.Locals("user", map[string]interface{}{
+		c.Locals("user", map[string]any{
 			"id": userID,
 		})
 		return c.Next()
@@ -119,7 +119,7 @@ func TestGetUserCollectionsAndProperties_Empty(t *testing.T) {
 
 	app := fiber.New()
 	app.Use(func(c *fiber.Ctx) error {
-		c.Locals("user", map[string]interface{}{
+		c.Locals("user", map[string]any{
 			"id": userID,
 		})
 		return c.Next()
