@@ -1,11 +1,12 @@
 # Build arguments
+ARG GO_VERSION=1.26
 ARG DEBUG=false
 ARG COVER=false
 ARG BUILDPLATFORM
 
 # ------------------
 # Build stage
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
 ARG DEBUG
 ARG COVER
 ARG TARGETARCH
@@ -50,7 +51,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -a -installsuffix cgo -
 
 # ------------------
 # Runtime stage
-FROM alpine:3.21 AS runtime
+FROM alpine:3.23 AS runtime
 
 # Install ca-certificates for HTTPS and wget for health checks
 RUN apk --no-cache add ca-certificates wget

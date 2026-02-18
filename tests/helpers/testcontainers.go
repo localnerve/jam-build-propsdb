@@ -406,8 +406,14 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	if !imageExists {
 		hostPlatform := fmt.Sprintf("linux/%s", runtime.GOARCH)
 
+		goVersion := os.Getenv("GO_VERSION")
+		if goVersion == "" {
+			goVersion = "1.26" // Default fallback
+		}
+
 		propsdbBuildArgs := map[string]*string{
 			"BUILDPLATFORM": &hostPlatform,
+			"GO_VERSION":    &goVersion,
 		}
 		if debugContainer == "true" {
 			propsdbBuildArgs["DEBUG"] = &debugContainer
@@ -439,7 +445,6 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			BuildArgs:  propsdbBuildArgs,
 			BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
 				opts.Target = "runtime"
-				opts.Version = build.BuilderBuildKit
 				opts.Platform = hostPlatform
 			},
 			PrintBuildLog: true,

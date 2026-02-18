@@ -38,7 +38,7 @@ A high-performance data service built with Go and Fiber, serving as a drop-in re
 
 #### Prerequisites
 
-- Go 1.21 or higher
+- Go 1.26.0 or higher
 - Docker Desktop
 - Node 24.12.0 or higher
 - GNU Make 4.4.1

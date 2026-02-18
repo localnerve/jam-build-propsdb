@@ -3,6 +3,8 @@
 export PROJECT_ROOT := $(CURDIR)
 
 # Variables
+GO_VERSION := $(shell grep -E '^go ' go.mod | cut -d' ' -f2)
+export GO_VERSION
 BINARY_NAME := jam-build-propsdb
 HEALTHCHECK_BINARY := healthcheck
 TESTCONTAINERS_BINARY := testcontainers
@@ -364,7 +366,7 @@ docker-build: ## Build jam-build-propsdb image
 	docker stop propsdb-api || true
 	docker rm propsdb-api || true
 	docker rmi jam-build-propsdb:latest || true
-	$(BUILDCMD) --tag "jam-build-propsdb:latest" .
+	$(BUILDCMD) --build-arg GO_VERSION=$(GO_VERSION) --tag "jam-build-propsdb:latest" .
 	@echo "Build jam-build-propsdb image complete"
 
 docker-compose-up: $(ENV_DOCKER_FILE) ## Start all services with Docker Compose. Params: BUILD=1 (force recompile), WAIT=NNN (wait timeout NNN secs).
