@@ -111,6 +111,9 @@ func main() {
 	// API routes under /api
 	api := app.Group("/api")
 
+	// Metrics endpoint (no versioning required)
+	api.Post("/metrics", handlers.SetMetrics)
+
 	// Version middleware
 	api.Use(middleware.VersionMiddleware())
 
