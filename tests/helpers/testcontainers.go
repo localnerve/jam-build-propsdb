@@ -28,6 +28,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/netip"
 	"os"
 	"runtime"
 	"slices"
@@ -39,13 +40,13 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/localnerve/jam-build-propsdb/data"
+	"github.com/moby/moby/api/types/container"
+	mobyNet "github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -69,9 +70,12 @@ func (tc *TestContainers) Terminate(t *testing.T) {
 
 			// Use the docker client directly since the testcontainers-go Container interface
 			// might not expose Signal() in the current version.
-			cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+			cli, err := client.New(client.FromEnv)
 			if err == nil {
-				if killErr := cli.ContainerKill(ctx, tc.PropsDBContainer.GetContainerID(), "SIGTERM"); killErr != nil {
+				options := client.ContainerKillOptions{
+					Signal: "SIGTERM",
+				}
+				if _, killErr := cli.ContainerKill(ctx, tc.PropsDBContainer.GetContainerID(), options); killErr != nil {
 					logMessage(t, "Warning: Failed to signal PropsDB container via Docker API: %v", killErr)
 				}
 				cli.Close()
@@ -129,23 +133,26 @@ func (tc *TestContainers) collectCoverage(t *testing.T) {
 	}
 
 	// Extract the coverage data as a tar stream using the direct Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		logMessage(t, "CRITICAL: Failed to create Docker client for extraction: %v", err)
 		return
 	}
 	defer cli.Close()
 
-	reader, stat, err := cli.CopyFromContainer(ctx, tc.PropsDBContainer.GetContainerID(), "/app/coverage")
+	copyOptions := client.CopyFromContainerOptions{
+		SourcePath: "/app/coverage",
+	}
+	copyResult, err := cli.CopyFromContainer(ctx, tc.PropsDBContainer.GetContainerID(), copyOptions)
 	if err != nil {
 		logMessage(t, "CRITICAL: CopyFromContainer failed: %v", err)
 		return
 	}
-	defer reader.Close()
-	logMessage(t, "  Docker API reports path stat: size=%d, name=%s", stat.Size, stat.Name)
+	defer copyResult.Content.Close()
+	logMessage(t, "  Docker API reports path stat: size=%d, name=%s", copyResult.Stat.Size, copyResult.Stat.Name)
 
 	// Untar the content into the local coverage directory
-	tr := tar.NewReader(reader)
+	tr := tar.NewReader(copyResult.Content)
 	filesExtracted := 0
 	for {
 		header, err := tr.Next()
@@ -232,7 +239,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	// Create and start the Database container
 	dbType := os.Getenv("DB_TYPE")
 	dbNetworkName := os.Getenv("DB_HOST")
-	tcpDbPort, err := nat.NewPort("tcp", os.Getenv("TESTCONTAINERS_DB_PORT"))
+	tcpDbPort, err := mobyNet.ParsePort(os.Getenv("TESTCONTAINERS_DB_PORT"))
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, "Failed to create DB port")
@@ -240,10 +247,10 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	dbContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        os.Getenv("TESTCONTAINERS_DB_IMAGE"),
-			ExposedPorts: []string{string(tcpDbPort)},
+			ExposedPorts: []string{tcpDbPort.String()},
 
 			Env:        getDBInitEnvMap(dbType),
-			WaitingFor: wait.ForListeningPort(tcpDbPort).WithStartupTimeout(60 * time.Second),
+			WaitingFor: wait.ForListeningPort(tcpDbPort.String()).WithStartupTimeout(60 * time.Second),
 			Networks:   []string{networkName},
 			NetworkAliases: map[string][]string{
 				networkName: {dbNetworkName},
@@ -259,15 +266,15 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 	// Initialize the database(s)
 	dbHost, _ := dbContainer.Host(ctx)
-	dbPort, _ := dbContainer.MappedPort(ctx, tcpDbPort)
+	dbPort, _ := dbContainer.MappedPort(ctx, tcpDbPort.String())
 	switch dbType {
 	case "postgres":
-		if err := performPostgresDBInit(t, testContainers, dbHost, dbPort); err != nil {
+		if err := performPostgresDBInit(t, testContainers, dbHost, dbPort.Port()); err != nil {
 			testContainers.Terminate(t)
 			exitWithError(t, err, "Failed to initialize databases")
 		}
 	case "mysql", "mariadb":
-		if err := performMySqlDBInit(t, testContainers, dbHost, dbPort); err != nil {
+		if err := performMySqlDBInit(t, testContainers, dbHost, dbPort.Port()); err != nil {
 			testContainers.Terminate(t)
 			exitWithError(t, err, "Failed to initialize databases")
 		}
@@ -275,7 +282,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 	// Create and start the Authorizer container
 	authzNetworkName := "authorizer"
-	tcpAuthzPort, err := nat.NewPort("tcp", os.Getenv("AUTHZ_PORT"))
+	tcpAuthzPort, err := mobyNet.ParsePort(os.Getenv("AUTHZ_PORT"))
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, "Failed to create Authorizer port")
@@ -288,7 +295,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	authorizerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        os.Getenv("AUTHZ_IMAGE"),
-			ExposedPorts: []string{string(tcpAuthzPort)},
+			ExposedPorts: []string{tcpAuthzPort.String()},
 			Env: map[string]string{
 				"ENV":           "production",
 				"CLIENT_ID":     os.Getenv("AUTHZ_CLIENT_ID"),
@@ -317,7 +324,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 	// Log the localhost and mapped ports for Authorizer for test processes
 	authzHost, _ := authorizerContainer.Host(ctx)
-	authzPort, _ := authorizerContainer.MappedPort(ctx, tcpAuthzPort)
+	authzPort, _ := authorizerContainer.MappedPort(ctx, tcpAuthzPort.String())
 	logMessage(t, "AUTHZ_URL=%s:%s", authzHost, authzPort.Port())
 
 	imageName := "jam-build-propsdb-test:latest"
@@ -330,13 +337,15 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	}
 
 	propsdbPortNumber := os.Getenv("PORT")
-	tcpPropsdbPort, err := nat.NewPort("tcp", propsdbPortNumber)
+	tcpPropsdbPort, err := mobyNet.ParsePort(propsdbPortNumber)
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, "Failed to create PropsDB port")
 	}
 
-	propsdbExposedPorts := []string{string(tcpPropsdbPort)}
+	delvePortNum := "2345"
+
+	propsdbExposedPorts := []string{tcpPropsdbPort.String()}
 	if debugContainer == "true" {
 		propsdbExposedPorts = append(propsdbExposedPorts, "2345/tcp")
 	}
@@ -347,11 +356,25 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 		testContainers.CoverageDir = coverageDir
 	}
 
+	var delvePort mobyNet.Port
+	delvePort, err = mobyNet.ParsePort(delvePortNum)
+	if err != nil {
+		testContainers.Terminate(t)
+		exitWithError(t, err, "Failed to parse Delve port")
+	}
+
+	var localAddr netip.Addr
+	localAddr, err = netip.ParseAddr("127.0.0.1")
+	if err != nil {
+		testContainers.Terminate(t)
+		exitWithError(t, err, "Failed to parse local tcp port")
+	}
+
 	hostConfigModifier := func(hostConfig *container.HostConfig) {
 		if debugContainer == "true" {
-			hostConfig.PortBindings = nat.PortMap{
-				"2345/tcp": []nat.PortBinding{
-					{HostIP: "127.0.0.1", HostPort: "2345"}, // Force local 2345
+			hostConfig.PortBindings = mobyNet.PortMap{
+				delvePort: []mobyNet.PortBinding{
+					{HostIP: localAddr, HostPort: delvePortNum},
 				},
 			}
 			hostConfig.CapAdd = []string{"SYS_PTRACE"}
@@ -360,9 +383,9 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	}
 
 	var waitStrategy wait.Strategy
-	waitStrategy = wait.ForHTTP("/metrics").WithPort(tcpPropsdbPort).WithStartupTimeout(30 * time.Second)
+	waitStrategy = wait.ForHTTP("/metrics").WithPort(tcpPropsdbPort.String()).WithStartupTimeout(30 * time.Second)
 	if debugContainer == "true" {
-		waitStrategy = wait.ForLog("API server listening at: [::]:2345").WithStartupTimeout(5 * time.Minute)
+		waitStrategy = wait.ForLog(fmt.Sprintf("API server listening at: [::]:%s", delvePortNum)).WithStartupTimeout(5 * time.Minute)
 	}
 
 	// Create PropsDB container request (we add to it later)
@@ -405,7 +428,8 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 	}
 
 	if !imageExists {
-		hostPlatform := fmt.Sprintf("linux/%s", runtime.GOARCH)
+		hostOS := "linux"
+		hostPlatform := fmt.Sprintf("%s/%s", hostOS, runtime.GOARCH)
 
 		goVersion := os.Getenv("GO_VERSION")
 		if goVersion == "" {
@@ -444,9 +468,12 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 			Tag:        imageNameParts[1],
 			KeepImage:  true, // Keep the image so we can reuse it
 			BuildArgs:  propsdbBuildArgs,
-			BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
+			BuildOptionsModifier: func(opts *client.ImageBuildOptions) {
 				opts.Target = "runtime"
-				opts.Platform = hostPlatform
+				opts.Platforms = append(opts.Platforms, ocispec.Platform{
+					OS:           hostOS,
+					Architecture: runtime.GOARCH,
+				})
 			},
 			PrintBuildLog: true,
 		}
@@ -471,7 +498,7 @@ func CreateAllTestContainers(t *testing.T) (*TestContainers, error) {
 
 	// Log the localhost and mapped ports for PropsDB
 	propsdbHost, _ := propsdbContainer.Host(ctx)
-	propsdbPort, _ := propsdbContainer.MappedPort(ctx, tcpPropsdbPort)
+	propsdbPort, _ := propsdbContainer.MappedPort(ctx, tcpPropsdbPort.String())
 	logMessage(t, "BASE_URL=%s:%s", propsdbHost, propsdbPort.Port())
 
 	logMessage(t, "PropsDB testcontainer started successfully")
@@ -498,8 +525,8 @@ func getDBInitEnvMap(dbType string) map[string]string {
 	return nil
 }
 
-func performMySqlDBInit(t *testing.T, testContainers *TestContainers, dbHost string, dbPort nat.Port) error {
-	db, err := sql.Open("mysql", fmt.Sprintf("root:%s@tcp(%s:%s)/", os.Getenv("DB_ROOT_PASSWORD"), dbHost, dbPort.Port()))
+func performMySqlDBInit(t *testing.T, testContainers *TestContainers, dbHost string, dbPort string) error {
+	db, err := sql.Open("mysql", fmt.Sprintf("root:%s@tcp(%s:%s)/", os.Getenv("DB_ROOT_PASSWORD"), dbHost, dbPort))
 	if err != nil {
 		testContainers.Terminate(t)
 		exitWithError(t, err, "Failed to connect to MariaDB for setup")
@@ -568,7 +595,7 @@ func performMySqlDBInit(t *testing.T, testContainers *TestContainers, dbHost str
 	return nil
 }
 
-func performPostgresDBInit(_ *testing.T, _ *TestContainers, _ string, _ nat.Port) error {
+func performPostgresDBInit(_ *testing.T, _ *TestContainers, _ string, _ string) error {
 	return fmt.Errorf("Postgres not fully supported yet")
 }
 
@@ -644,18 +671,18 @@ func excludeComment(line string) string {
 }
 
 func imageExists(ctx context.Context, imageName string) (bool, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return false, err
 	}
 	defer cli.Close()
 
-	images, err := cli.ImageList(ctx, image.ListOptions{})
+	imageListResult, err := cli.ImageList(ctx, client.ImageListOptions{})
 	if err != nil {
 		return false, err
 	}
 
-	for _, image := range images {
+	for _, image := range imageListResult.Items {
 		if slices.Contains(image.RepoTags, imageName) {
 			return true, nil
 		}

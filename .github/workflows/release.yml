@@ -15,7 +15,7 @@ on:
         required: false
         type: boolean
   release:
-    types: [created]
+    types: [published]
 
 env:
   NODE_VERSION: '24.12.0'
