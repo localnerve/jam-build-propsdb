@@ -44,7 +44,7 @@ services:
 
   # The cache - Used by authorizer for session storage
   cache:
-    image: redis:8.6.0
+    image: redis:8.8.0
     container_name: propsdb-cache
     ports:
       - 6379:6379

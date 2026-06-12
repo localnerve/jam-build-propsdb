@@ -51,7 +51,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -a -installsuffix cgo -
 
 # ------------------
 # Runtime stage
-FROM alpine:3.23 AS runtime
+FROM alpine:3.24 AS runtime
 
 # Install ca-certificates for HTTPS and wget for health checks
 RUN apk --no-cache add ca-certificates wget
