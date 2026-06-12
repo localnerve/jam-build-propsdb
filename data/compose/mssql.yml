@@ -4,8 +4,6 @@ services:
     container_name: propsdb-database
     platform: linux/amd64 # Support Apple Silicon (ARM64) via emulation
     user: root # Needed to run the shell script and server together
-    ports:
-      - "${DB_PORT:-1433}:${DB_PORT:-1433}"
     environment:
       - ACCEPT_EULA=Y                   # Required by MSSQL software
       - MSSQL_SA_PASSWORD=${DB_ROOT_PASSWORD} # Required by MSSQL software

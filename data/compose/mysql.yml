@@ -2,8 +2,6 @@ services:
   database:
     image: ${DB_IMAGE:-mysql:8.4}
     container_name: propsdb-database
-    ports:
-      - "${DB_PORT:-3306}:${DB_PORT:-3306}"
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
       - MYSQL_DATABASE=${DB_APP_DATABASE}

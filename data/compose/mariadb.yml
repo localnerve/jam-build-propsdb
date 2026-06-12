@@ -1,9 +1,7 @@
 services:
   database:
-    image: ${DB_IMAGE:-mariadb:12.2.2}
+    image: ${DB_IMAGE:-mariadb:12.3.2}
     container_name: propsdb-database
-    ports:
-      - "${DB_PORT:-3306}:${DB_PORT:-3306}"
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
       - MYSQL_DATABASE=${DB_APP_DATABASE}
