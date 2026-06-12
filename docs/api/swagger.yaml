@@ -1,5 +1,13 @@
 basePath: /api
 definitions:
+  handlers.metricsPayload:
+    properties:
+      event:
+        type: string
+      labels:
+        additionalProperties: true
+        type: object
+    type: object
   utils.ErrorResponseStruct:
     properties:
       message:
@@ -492,6 +500,32 @@ paths:
       summary: Get user properties
       tags:
       - UserData
+  /metrics:
+    post:
+      consumes:
+      - application/json
+      description: Log client metrics events and increments prometheus counter
+      parameters:
+      - description: Metrics to record
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.metricsPayload'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Set client metrics
+      tags:
+      - Metrics
 schemes:
 - http
 - https
